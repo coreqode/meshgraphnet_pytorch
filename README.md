@@ -1,2 +1,2 @@
-# meshgraphnet_pytorch
-Pytorch Implementation of the meshgraphnets
+# MGN_PyTorch
+Pytorch implementation of the Meshgraphnets
