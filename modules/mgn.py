@@ -1,5 +1,4 @@
 import sys
-#sys.path.append('../')
 import numpy as np
 from torchsummary import summary
 from tqdm import tqdm, trange
@@ -63,14 +62,13 @@ class MGN(BaseModule):
             out = self.model(model_inputs, is_training = True)
             print(out)
             break
-
         
 def main():
     h = MGN()
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
-    h.inspect_dataset()
-    # h.train()
+    # h.inspect_dataset()
+    h.train()
 
 
 if __name__ == "__main__":

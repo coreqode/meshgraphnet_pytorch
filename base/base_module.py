@@ -202,20 +202,24 @@ class BaseModule:
             # -----------------------------------------------------------------#
             num_iterations = self.trainset_length
             bar = Bar(f"Ep : {epoch} | Training :", max=num_iterations)
-            for batch_idx, (model_inputs, data) in enumerate(self.train_loader):
+            for batch_idx, (data0, data1) in enumerate(self.train_loader):
+                if isinstance(data1, list):
+                    for i in range(len(data1)):
+                        model_inputs = data0[i]
+                        data = data1[i]
+                        model_inputs, data = self.send_to_cuda(model_inputs, data)
 
-                model_inputs, data = self.send_to_cuda(model_inputs, data)
-                if (batch_idx == 0) and (epoch == self.start_epoch):
-                    losses = self.train_step_zero(model_inputs, data)
-                    self.define_loss_meter(losses)
+                        if (batch_idx == 0) and (epoch == self.start_epoch):
+                            losses = self.train_step_zero(model_inputs, data)
+                            self.define_loss_meter(losses)
 
-                predictions = self.train_step(model_inputs, data)
+                        predictions = self.train_step(model_inputs, data)
 
-                if self.wandb and (batch_idx % self.wandb_log_interval == 0):
-                    for name, loss in self.loss_meter.items():
-                        _loss = torch.mean(torch.FloatTensor(loss))
-                        _loss = _loss.detach().cpu().numpy()
-                        self.wandb.log({name: _loss})
+                        if self.wandb and (batch_idx % self.wandb_log_interval == 0):
+                            for name, loss in self.loss_meter.items():
+                                _loss = torch.mean(torch.FloatTensor(loss))
+                                _loss = _loss.detach().cpu().numpy()
+                                self.wandb.log({name: _loss})
 
                 Bar.suffix = f"{batch_idx+1}/{num_iterations} | Total: {bar.elapsed_td:} | ETA: {bar.eta_td:} | {self.print_loss_metrics()}"
                 bar.next()

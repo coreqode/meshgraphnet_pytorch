@@ -143,9 +143,9 @@ class Model(nn.Module):
             return (self.core_model.MultiGraph(node_features=self._node_normalizer(node_features),
                                                edge_sets=[mesh_edges]))
 
-    def forward(self, inputs, is_training):
+    def forward(self, inputs):
+        is_training = self.training
         graph = self._build_graph(inputs, is_training=is_training)
-        print(type(graph))
         if is_training:
             return self.learned_model(graph,
                                       world_edge_normalizer=self._world_edge_normalizer, is_training=is_training)
