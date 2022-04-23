@@ -41,7 +41,7 @@ class MGN(BaseModule):
 
 
     def define_model(self):
-        self.model = Model(self.device, size =3)
+        self.model = Model(self.device, size =3, batchsize=self.train_batch_size)
 
     def loss_func(self, data, predictions):
         world_pos = data['world_pos']

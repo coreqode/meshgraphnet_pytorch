@@ -13,38 +13,39 @@ class NodeType(enum.IntEnum):
     SIZE = 9
 
 def triangles_to_edges(faces):
-    edges = torch.cat((faces[:, 0:2], faces[:, 1:3], torch.stack((faces[:, 2], faces[:, 0]), dim=1)), dim=0)
-    receivers, _ = torch.min(edges, dim=1)
-    senders, _ = torch.max(edges, dim=1)
-    packed_edges = torch.stack((senders, receivers), dim=1)
-    unique_edges = torch.unique(packed_edges, return_inverse=False, return_counts=False, dim=0)
-    senders, receivers = torch.unbind(unique_edges, dim=1)
+    edges = torch.cat((faces[:, :, 0:2], faces[:, :, 1:3], torch.stack((faces[:, :, 2], faces[:, :, 0]), dim=2)), dim=1)
+    receivers, _ = torch.min(edges, dim=2)
+    senders, _ = torch.max(edges, dim=2)
+    packed_edges = torch.stack((senders, receivers), dim=2)
+    unique_edges = torch.unique(packed_edges, return_inverse=False, return_counts=False, dim=1)
+    senders, receivers = torch.unbind(unique_edges, dim=2)
     senders = senders.to(torch.int64)
     receivers = receivers.to(torch.int64)
-    two_way_connectivity = (torch.cat((senders, receivers), dim=0), torch.cat((receivers, senders), dim=0))
+    two_way_connectivity = (torch.cat((senders, receivers), dim=1), torch.cat((receivers, senders), dim=1))
     return {'two_way_connectivity': two_way_connectivity, 'senders': senders, 'receivers': receivers}
 
 class Normalizer(torch.nn.Module):
     """Feature normalizer that accumulates statistics online."""
 
-    def __init__(self, device, size,  max_accumulations=10 ** 6, std_epsilon=1e-8, ):
+    def __init__(self, device, size, batchsize, max_accumulations=10 ** 6, std_epsilon=1e-8):
         super(Normalizer, self).__init__()
      
         self.device = device
+        self.batchsize = batchsize
         self._max_accumulations = max_accumulations
         self._std_epsilon = torch.tensor([std_epsilon], requires_grad=False).to(self.device)
 
         self._acc_count = torch.zeros(1, dtype=torch.float32, requires_grad=False).to(self.device)
         self._num_accumulations = torch.zeros(1, dtype=torch.float32, requires_grad=False).to(self.device)
-        self._acc_sum = torch.zeros(size, dtype=torch.float32, requires_grad=False).to(self.device)
-        self._acc_sum_squared = torch.zeros(size, dtype=torch.float32, requires_grad=False).to(self.device)
+        self._acc_sum = torch.zeros((self.batchsize, size), dtype=torch.float32, requires_grad=False).to(self.device)
+        self._acc_sum_squared = torch.zeros((self.batchsize, size), dtype=torch.float32, requires_grad=False).to(self.device)
 
     def forward(self, batched_data, node_num=None, accumulate=True):
         """Normalizes input data and accumulates statistics."""
         if accumulate and self._num_accumulations < self._max_accumulations:
             # stop accumulating after a million updates, to prevent accuracy issues
             self._accumulate(batched_data)
-        return (batched_data - self._mean()) / self._std_with_epsilon()
+        return (batched_data - torch.unsqueeze(self._mean(), dim=1)) / torch.unsqueeze(self._std_with_epsilon(), dim=1)
 
     def inverse(self, normalized_batch_data):
         """Inverse transformation of the normalizer."""
@@ -52,10 +53,10 @@ class Normalizer(torch.nn.Module):
 
     def _accumulate(self, batched_data, node_num=None):
         """Function to perform the accumulation of the batch_data statistics."""
-        count = torch.tensor(batched_data.shape[0], dtype=torch.float32, device=self.device)
+        count = torch.tensor(batched_data.shape[1], dtype=torch.float32, device=self.device)
 
-        data_sum = torch.sum(batched_data, dim=0)
-        squared_data_sum = torch.sum(batched_data ** 2, dim=0)
+        data_sum = torch.sum(batched_data, dim=1)
+        squared_data_sum = torch.sum(batched_data ** 2, dim=1)
         self._acc_sum = self._acc_sum.add(data_sum)
         self._acc_sum_squared = self._acc_sum_squared.add(squared_data_sum)
         self._acc_count = self._acc_count.add(count)
