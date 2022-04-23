@@ -87,17 +87,21 @@ def unsorted_segment_operation(device, data, segment_ids, num_segments, operatio
 
         # segment_ids is a 1-D tensor repeat it to have the same shape as data
         data = data.to(device)
-        segment_ids = segment_ids.to(device)
+        segment_ids = segment_ids[0].to(device)
         if len(segment_ids.shape) == 1:
-            s = torch.prod(torch.tensor(data.shape[1:])).long().to(device)
-            segment_ids = segment_ids.repeat_interleave(s).view(segment_ids.shape[0], *data.shape[1:]).to(device)
+            s = torch.prod(torch.tensor(data.shape[2:])).long().to(device)
+            segment_ids = segment_ids.repeat_interleave(s).view(segment_ids.shape[0], *data.shape[2:]).to(device)
+
+            segment_ids = torch.unsqueeze(segment_ids, dim=0).repeat(data.shape[0],1,1)
 
         assert data.shape == segment_ids.shape, "data.shape and segment_ids.shape should be equal"
 
-        shape = [num_segments] + list(data.shape[1:])
+        shape = [data.shape[0], num_segments] + list(data.shape[2:])
         result = torch.zeros(*shape).to(device)
+
         if operation == 'sum':
-            result = torch_scatter.scatter_add(data.float(), segment_ids, dim=0, dim_size=num_segments)
+            result = torch_scatter.scatter_add(data.float(), segment_ids, dim=1, dim_size=num_segments)
+            
         elif operation == 'max':
             result, _ = torch_scatter.scatter_max(data.float(), segment_ids, dim=0, dim_size=num_segments)
         elif operation == 'mean':

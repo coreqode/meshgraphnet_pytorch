@@ -38,7 +38,7 @@ class GraphNetBlock(nn.Module):
     def __init__(self, model_fn, output_size, message_passing_aggregator):
         super().__init__()
         self.mesh_edge_model = model_fn(output_size)
-        self.world_edge_model = model_fn(output_size)
+        # self.world_edge_model = model_fn(output_size)
         self.node_model = model_fn(output_size)
         self.message_passing_aggregator = message_passing_aggregator
 
@@ -49,15 +49,17 @@ class GraphNetBlock(nn.Module):
         """Aggregrates node features, and applies edge function."""
         senders = edge_set.senders.to(device)
         receivers = edge_set.receivers.to(device)
-        sender_features = torch.index_select(input=node_features, dim=0, index=senders)
-        receiver_features = torch.index_select(input=node_features, dim=0, index=receivers)
+
+        # as all the batch have same value of senders, we are sending values of the first batch
+        sender_features = torch.index_select(input=node_features, dim=1, index=senders[0])
+        receiver_features = torch.index_select(input=node_features, dim=1, index=receivers[0])
         features = [sender_features, receiver_features, edge_set.features]
         features = torch.cat(features, dim=-1)
         return self.mesh_edge_model(features)
 
     def _update_node_features(self, node_features, edge_sets):
         """Aggregrates edge features, and applies node function."""
-        num_nodes = node_features.shape[0]
+        num_nodes = node_features.shape[1]
         features = [node_features]
         for edge_set in edge_sets:
             features.append( unsorted_segment_operation(device, edge_set.features, edge_set.receivers, num_nodes,

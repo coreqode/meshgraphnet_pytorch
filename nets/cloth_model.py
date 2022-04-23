@@ -15,7 +15,7 @@ class Model(nn.Module):
         self._node_normalizer = Normalizer(self.device , size=3 + NodeType.SIZE, batchsize=batchsize)
         # self._node_dynamic_normalizer = Normalizer(self.device, size=1)
         self._mesh_edge_normalizer = Normalizer(self.device, size=7, batchsize=batchsize)  # 2D coord + 3D coord + 2*length = 7
-        self._world_edge_normalizer = Normalizer(self.device, size=4,batchsize=batchsize)
+        self._world_edge_normalizer = Normalizer(self.device, size=4,batchsize=batchsize) # why world_edge_normalizer?
 
         self.core_model = encode_process_decode
         self.message_passing_steps = message_passing_steps
@@ -53,6 +53,7 @@ class Model(nn.Module):
             relative_world_pos, torch.norm(relative_world_pos, dim=-1, keepdim=True),
             relative_mesh_pos, torch.norm(relative_mesh_pos, dim=-1, keepdim=True)), dim=-1)
 
+        # not clear where are we making and using world edges as given in paper
         mesh_edges = self.core_model.EdgeSet(
             name='mesh_edges',
             features=self._mesh_edge_normalizer(edge_features),
@@ -66,16 +67,12 @@ class Model(nn.Module):
         is_training = self.training
         graph = self._build_graph(inputs)
 
-        print(graph.node_features.shape)
-        print(graph.edge_sets[0].features.shape)
-        exit()
-
         if is_training:
             return self.learned_model(graph)
         else:
             return self._update(inputs, self.learned_model(graph,
                                                            world_edge_normalizer=self._world_edge_normalizer,
-                                                           ))
+                                                           )) # why world_edge_normalizer?
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
