@@ -30,12 +30,12 @@ class MGN(BaseModule):
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path='./data/flag_simple', history = True , 
+                                    path=self.data_dir+'flag_simple', history = True , 
                                     split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
         
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path='./data/flag_simple', history = True , 
+                                    path=self.data_dir+'flag_simple', history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
                                     augmentation = False)
 
