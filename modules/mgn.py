@@ -53,11 +53,12 @@ class MGN(BaseModule):
         target_acceleration = target_position - 2 * cur_position + prev_position
         target_normalized = self.model.get_output_normalizer()(target_acceleration)
 
-        node_type = data['node_type'][0]
-        loss_mask = torch.eq(node_type[:, 0], torch.tensor([common.NodeType.NORMAL.value]).to(self.device).int())
-        error = (target_normalized[0] - predictions) ** 2
-        error = torch.sum(error , dim = 1)
+        node_type = data['node_type']
+        loss_mask = torch.eq(node_type[:, :, 0], torch.tensor([common.NodeType.NORMAL.value]).to(self.device).int())
+        error = (target_normalized - predictions) ** 2
+        error = torch.sum(error , dim = 2)
         error = torch.mean(error[loss_mask])
+
         loss = {'mse_loss': error}
         return loss
 

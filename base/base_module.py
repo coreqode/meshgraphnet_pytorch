@@ -101,9 +101,6 @@ class BaseModule:
     def train_step_zero(self, model_inputs, data):
         self.model.train()
         predictions = self.model(model_inputs)
-        print("preds:", predictions.shape)
-        print("exiting base module train step zero")
-        exit()
         losses = self.loss_func(data, predictions)
         return losses
 
