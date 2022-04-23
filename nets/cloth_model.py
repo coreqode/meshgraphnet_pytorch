@@ -27,7 +27,7 @@ class Model(nn.Module):
             message_passing_steps=self.message_passing_steps,
             message_passing_aggregator=self.message_passing_aggregator, )
 
-    def _build_graph(self, inputs, is_training):
+    def _build_graph(self, inputs):
         """Builds input graph."""
         world_pos = inputs['world_pos'][0]
         prev_world_pos = inputs['prev|world_pos'][0]
@@ -52,7 +52,7 @@ class Model(nn.Module):
 
         mesh_edges = self.core_model.EdgeSet(
             name='mesh_edges',
-            features=self._mesh_edge_normalizer(edge_features, is_training),
+            features=self._mesh_edge_normalizer(edge_features),
             receivers=receivers,
             senders=senders)
 
@@ -60,14 +60,14 @@ class Model(nn.Module):
 
     def forward(self, inputs):
         is_training = self.training
-        graph = self._build_graph(inputs, is_training=is_training)
+        graph = self._build_graph(inputs)
 
         if is_training:
             return self.learned_model(graph)
         else:
             return self._update(inputs, self.learned_model(graph,
                                                            world_edge_normalizer=self._world_edge_normalizer,
-                                                           is_training=is_training))
+                                                           ))
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
