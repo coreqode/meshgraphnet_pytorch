@@ -8,23 +8,24 @@ import matplotlib.pyplot as plt
 from base.base_module import BaseModule
 from nets.cloth_model import Model
 from datasets.dataset import FlagSimpleDataset
-from utils import common
+from utils import common, options
 
 class MGN(BaseModule):
-    def __init__(self):
+    def __init__(self, parser):
         super().__init__()
-        self.epoch = 100
-        self.data_dir = "./data/"
-        self.num_workers = 0
-        self.train_batch_size = 16
-        self.val_batch_size = 16
-        self.prefetch_factor = 2
+        self.epoch = parser.epochs
+        self.data_dir = parser.data_dir
+        self.num_workers = parser.num_worker
+        self.train_batch_size = parser.train_batch_size
+        self.val_batch_size = parser.val_batch_size
+        self.prefetch_factor = parser.prefetch_factor
+        self.learning_rate = parser.learning_rate
         self.train_shuffle = True
         self.val_shuffle = False
         self.pin_memory = False
         self.node_info = {'NORMAL': 0}
-        self.trajectory_length = 20
-        self.split_ratio = 0.85
+        self.trajectory_length = parser.trajectory_length
+        self.split_ratio = parser.split_ratio
         self.val_freq = 2000
 
     def define_dataset(self):
@@ -68,7 +69,8 @@ class MGN(BaseModule):
             break
         
 def main():
-    h = MGN()
+    parser = options.get_parser()
+    h = MGN(parser)
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
     # h.inspect_dataset()
