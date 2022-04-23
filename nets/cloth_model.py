@@ -8,7 +8,7 @@ class Model(nn.Module):
     """Model for static cloth simulation."""
 
     def __init__(self, device, size, message_passing_aggregator='sum',
-                 message_passing_steps=15, attention=False):
+                 message_passing_steps=15, ):
         super(Model, self).__init__()
         self.device = device
         self._output_normalizer = Normalizer(self.device, size=3)
@@ -20,13 +20,12 @@ class Model(nn.Module):
         self.core_model = encode_process_decode
         self.message_passing_steps = message_passing_steps
         self.message_passing_aggregator = message_passing_aggregator
-        self._attention = attention
         self.learned_model = self.core_model.EncodeProcessDecode(
             output_size=size,
             latent_size=128,
             num_layers=2,
             message_passing_steps=self.message_passing_steps,
-            message_passing_aggregator=self.message_passing_aggregator, attention=self._attention)
+            message_passing_aggregator=self.message_passing_aggregator, )
 
     def _build_graph(self, inputs, is_training):
         """Builds input graph."""
@@ -64,8 +63,7 @@ class Model(nn.Module):
         graph = self._build_graph(inputs, is_training=is_training)
 
         if is_training:
-            return self.learned_model(graph,
-                                      world_edge_normalizer=self._world_edge_normalizer, is_training=is_training)
+            return self.learned_model(graph)
         else:
             return self._update(inputs, self.learned_model(graph,
                                                            world_edge_normalizer=self._world_edge_normalizer,

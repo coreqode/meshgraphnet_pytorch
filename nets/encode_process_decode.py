@@ -33,34 +33,14 @@ class LazyMLP(nn.Module):
         y = self.layers(input)
         return y
 
-class AttentionModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear_layer = nn.LazyLinear(1)
-        self.leaky_relu = nn.LeakyReLU(negative_slope=0.2)
-        self.to(device)
-
-    def forward(self, input, index):
-
-        latent = self.linear_layer(input)
-        latent = self.leaky_relu(latent)
-        result = torch.zeros(*latent.shape)
-
-        result = scatter_softmax(latent.float(), index, dim=0)
-        result = result.type(result.dtype)
-        return result
-
 class GraphNetBlock(nn.Module):
     """Multi-Edge Interaction Network with residual connections."""
 
-    def __init__(self, model_fn, output_size, message_passing_aggregator, attention=False):
+    def __init__(self, model_fn, output_size, message_passing_aggregator):
         super().__init__()
         self.mesh_edge_model = model_fn(output_size)
         self.world_edge_model = model_fn(output_size)
         self.node_model = model_fn(output_size)
-        self.attention = attention
-        if attention:
-            self.attention_model = AttentionModel()
         self.message_passing_aggregator = message_passing_aggregator
 
         self.linear_layer = nn.LazyLinear(1)
@@ -121,45 +101,7 @@ class GraphNetBlock(nn.Module):
         num_nodes = node_features.shape[0]
         features = [node_features]
         for edge_set in edge_sets:
-            if self.attention and self.message_passing_aggregator == 'pna':
-                attention_input = self.linear_layer(edge_set.features)
-                attention_input = self.leaky_relu(attention_input)
-                attention = F.softmax(attention_input, dim=0)
-                features.append(
-                    self.unsorted_segment_operation(torch.mul(edge_set.features, attention), edge_set.receivers,
-                                                    num_nodes, operation='sum'))
-                features.append(
-                    self.unsorted_segment_operation(torch.mul(edge_set.features, attention), edge_set.receivers,
-                                                    num_nodes, operation='mean'))
-                features.append(
-                    self.unsorted_segment_operation(torch.mul(edge_set.features, attention), edge_set.receivers,
-                                                    num_nodes, operation='max'))
-                features.append(
-                    self.unsorted_segment_operation(torch.mul(edge_set.features, attention), edge_set.receivers,
-                                                    num_nodes, operation='min'))
-            elif self.attention:
-                attention_input = self.linear_layer(edge_set.features)
-                attention_input = self.leaky_relu(attention_input)
-                attention = F.softmax(attention_input, dim=0)
-                features.append(
-                    self.unsorted_segment_operation(torch.mul(edge_set.features, attention), edge_set.receivers,
-                                                    num_nodes, operation=self.message_passing_aggregator))
-            elif self.message_passing_aggregator == 'pna':
-                features.append(
-                    self.unsorted_segment_operation(edge_set.features, edge_set.receivers,
-                                                    num_nodes, operation='sum'))
-                features.append(
-                    self.unsorted_segment_operation(edge_set.features, edge_set.receivers,
-                                                    num_nodes, operation='mean'))
-                features.append(
-                    self.unsorted_segment_operation(edge_set.features, edge_set.receivers,
-                                                    num_nodes, operation='max'))
-                features.append(
-                    self.unsorted_segment_operation(edge_set.features, edge_set.receivers,
-                                                    num_nodes, operation='min'))
-            else:
-                features.append(
-                    self.unsorted_segment_operation(edge_set.features, edge_set.receivers, num_nodes,
+            features.append( self.unsorted_segment_operation(edge_set.features, edge_set.receivers, num_nodes,
                                                     operation=self.message_passing_aggregator))
         features = torch.cat(features, dim=-1)
         return self.node_model(features)
@@ -225,33 +167,6 @@ class Decoder(nn.Module):
     def forward(self, graph):
         return self.model(graph.node_features)
 
-class Processor(nn.Module):
-    '''
-    This class takes the nodes with the most influential feature (sum of square)
-    The the chosen numbers of nodes in each ripple will establish connection(features and distances) with the most influential nodes and this connection will be learned
-    Then the result is add to output latent graph of encoder and the modified latent graph will be feed into original processor
-
-    Option: choose whether to normalize the high rank node connection
-    '''
-
-    def __init__(self, make_mlp, output_size, message_passing_steps, message_passing_aggregator, attention=False,
-                 stochastic_message_passing_used=False):
-        super().__init__()
-        self.stochastic_message_passing_used = stochastic_message_passing_used
-        self.graphnet_blocks = nn.ModuleList()
-        for index in range(message_passing_steps):
-            self.graphnet_blocks.append(GraphNetBlock(model_fn=make_mlp, output_size=output_size,
-                                                      message_passing_aggregator=message_passing_aggregator,
-                                                      attention=attention))
-
-    def forward(self, latent_graph, normalized_adj_mat=None, mask=None):
-        for graphnet_block in self.graphnet_blocks:
-            if mask is not None:
-                latent_graph = graphnet_block(latent_graph, mask)
-            else:
-                latent_graph = graphnet_block(latent_graph)
-        return latent_graph
-
 class EncodeProcessDecode(nn.Module):
     """Encode-Process-Decode GraphNet model."""
 
@@ -259,7 +174,7 @@ class EncodeProcessDecode(nn.Module):
                  output_size,
                  latent_size,
                  num_layers,
-                 message_passing_aggregator, message_passing_steps, attention):
+                 message_passing_aggregator, message_passing_steps, ):
   
         super().__init__()
         self._latent_size = latent_size
@@ -268,16 +183,17 @@ class EncodeProcessDecode(nn.Module):
         self._message_passing_steps = message_passing_steps
         self._message_passing_aggregator = message_passing_aggregator
 
-        self._attention = attention
 
         self.encoder = Encoder(make_mlp=self._make_mlp, latent_size=self._latent_size).to(device)
-        self.processor = Processor(make_mlp=self._make_mlp, output_size=self._latent_size,
-                                   message_passing_steps=self._message_passing_steps,
-                                   message_passing_aggregator=self._message_passing_aggregator,
-                                   attention=self._attention,
-                                   stochastic_message_passing_used=False).to(device)
         self.decoder = Decoder(make_mlp=functools.partial(self._make_mlp, layer_norm=False),
                                output_size=self._output_size).to(device)
+
+
+        self.graphnet_blocks = nn.ModuleList()
+        for _ in range(self._message_passing_steps):
+            self.graphnet_blocks.append(GraphNetBlock(model_fn=self._make_mlp, output_size=self._latent_size,
+                                                      message_passing_aggregator=message_passing_aggregator,
+                                                      ))
 
     def _make_mlp(self, output_size, layer_norm=True):
         """Builds an MLP."""
@@ -287,8 +203,9 @@ class EncodeProcessDecode(nn.Module):
             network = nn.Sequential(network, nn.LayerNorm(normalized_shape=widths[-1]))
         return network
 
-    def forward(self, graph, is_training, world_edge_normalizer=None):
+    def forward(self, graph):
         """Encodes and processes a multigraph, and returns node features."""
         latent_graph = self.encoder(graph)
-        latent_graph = self.processor(latent_graph)
+        for graphnet_block in self.graphnet_blocks:
+            latent_graph = graphnet_block(latent_graph)
         return self.decoder(latent_graph)
