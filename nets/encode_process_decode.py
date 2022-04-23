@@ -280,10 +280,8 @@ class EncodeProcessDecode(nn.Module):
                  output_size,
                  latent_size,
                  num_layers,
-                 message_passing_aggregator, message_passing_steps, attention, ripple_used,
-                 ripple_generation=None, ripple_generation_number=None,
-                 ripple_node_selection=None, ripple_node_selection_random_top_n=None, ripple_node_connection=None,
-                 ripple_node_ncross=None):
+                 message_passing_aggregator, message_passing_steps, attention):
+  
         super().__init__()
         self._latent_size = latent_size
         self._output_size = output_size
@@ -292,17 +290,6 @@ class EncodeProcessDecode(nn.Module):
         self._message_passing_aggregator = message_passing_aggregator
 
         self._attention = attention
-
-        self._ripple_used = ripple_used
-        if self._ripple_used:
-            self._ripple_generation = ripple_generation
-            self._ripple_generation_number = ripple_generation_number
-            self._ripple_node_selection = ripple_node_selection
-            self._ripple_node_selection_random_top_n = ripple_node_selection_random_top_n
-            self._ripple_node_connection = ripple_node_connection
-            self._ripple_node_ncross = ripple_node_ncross
-            self._ripple_machine = ripple_machine.RippleMachine(ripple_generation, ripple_generation_number, ripple_node_selection,
-                 ripple_node_selection_random_top_n, ripple_node_connection, ripple_node_ncross)
 
         self.encoder = Encoder(make_mlp=self._make_mlp, latent_size=self._latent_size).to(device)
         self.processor = Processor(make_mlp=self._make_mlp, output_size=self._latent_size,
@@ -323,8 +310,6 @@ class EncodeProcessDecode(nn.Module):
 
     def forward(self, graph, is_training, world_edge_normalizer=None):
         """Encodes and processes a multigraph, and returns node features."""
-        # if self._ripple_used:
-        #     graph = self._ripple_machine.add_meta_edges(graph, world_edge_normalizer, is_training)
         latent_graph = self.encoder(graph)
         latent_graph = self.processor(latent_graph)
         return self.decoder(latent_graph)
