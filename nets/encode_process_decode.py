@@ -154,19 +154,6 @@ class Encoder(nn.Module):
                 new_edges_sets.append(edge_set._replace(features=latent))
         return MultiGraph(node_latents, new_edges_sets)
 
-
-class Decoder(nn.Module):
-    """Decodes node features from graph."""
-
-    """Encodes node and edge features into latent features."""
-
-    def __init__(self, make_mlp, output_size):
-        super().__init__()
-        self.model = make_mlp(output_size)
-
-    def forward(self, graph):
-        return self.model(graph.node_features)
-
 class EncodeProcessDecode(nn.Module):
     """Encode-Process-Decode GraphNet model."""
 
@@ -185,8 +172,7 @@ class EncodeProcessDecode(nn.Module):
 
 
         self.encoder = Encoder(make_mlp=self._make_mlp, latent_size=self._latent_size).to(device)
-        self.decoder = Decoder(make_mlp=functools.partial(self._make_mlp, layer_norm=False),
-                               output_size=self._output_size).to(device)
+        self.decoder = self._make_mlp(self._output_size, layer_norm=False)
 
 
         self.graphnet_blocks = nn.ModuleList()
@@ -208,4 +194,5 @@ class EncodeProcessDecode(nn.Module):
         latent_graph = self.encoder(graph)
         for graphnet_block in self.graphnet_blocks:
             latent_graph = graphnet_block(latent_graph)
-        return self.decoder(latent_graph)
+        out = self.decoder(latent_graph.node_features)
+        return out
