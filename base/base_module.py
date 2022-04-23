@@ -204,7 +204,7 @@ class BaseModule:
             bar = Bar(f"Ep : {epoch} | Training :", max=num_iterations)
             for batch_idx, (data0, data1) in enumerate(self.train_loader):
                 if isinstance(data1, list):
-                    for i in range(len(data1)):
+                    for i in range(len(data1))[:self.trajectory_length]:
                         model_inputs = data0[i]
                         data = data1[i]
                         model_inputs, data = self.send_to_cuda(model_inputs, data)
@@ -233,15 +233,20 @@ class BaseModule:
                 num_iterations = self.valset_length
                 bar = Bar(f"Ep : {epoch} | Validation :", max=num_iterations)
                 with torch.no_grad():
-                    for batch_idx, (model_inputs, data) in enumerate(self.val_loader):
-                        model_inputs, data = self.send_to_cuda(model_inputs, data)
-                        predictions = self.val_step(model_inputs, data)
+                    for batch_idx, (data0, data1) in enumerate(self.val_loader):
+                        if isinstance(data1, list):
+                            for i in range(len(data1))[:self.trajectory_length]:
+                                model_inputs = data0[i]
+                                data = data1[i]
 
-                        if self.wandb and (batch_idx % self.wandb_log_interval == 0):
-                            for name, loss in self.loss_meter.items():
-                                _loss = torch.mean(torch.FloatTensor(loss))
-                                _loss = _loss.detach().cpu().numpy()
-                                self.wandb.log({f'{name}_val': _loss})
+                                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                                predictions = self.val_step(model_inputs, data)
+
+                                if self.wandb and (batch_idx % self.wandb_log_interval == 0):
+                                    for name, loss in self.loss_meter.items():
+                                        _loss = torch.mean(torch.FloatTensor(loss))
+                                        _loss = _loss.detach().cpu().numpy()
+                                        self.wandb.log({f'{name}_val': _loss})
 
                     Bar.suffix = f"{batch_idx+1}/{num_iterations} | Total: {bar.elapsed_td:} | ETA: {bar.eta_td:} | {self.print_loss_metrics()}"
                     bar.next()

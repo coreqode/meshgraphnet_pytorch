@@ -16,24 +16,27 @@ class MGN(BaseModule):
         self.epoch = 100
         self.data_dir = "./data/"
         self.num_workers = 0
-        self.train_batch_size = 1
-        self.val_batch_size = 1
+        self.train_batch_size = 16
+        self.val_batch_size = 16
         self.prefetch_factor = 2
         self.train_shuffle = True
         self.val_shuffle = False
         self.pin_memory = False
         self.node_info = {'NORMAL': 0}
+        self.trajectory_length = 20
+        self.split_ratio = 0.85
+        self.val_freq = 2000
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
                                     path='./data/flag_simple', history = True , 
-                                    split='train', node_info=self.node_info, 
+                                    split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
         
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
                                     path='./data/flag_simple', history = True , 
-                                    split='train', node_info=self.node_info, 
-                                    augmentation = True)
+                                    split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
+                                    augmentation = False)
 
 
     def define_model(self):

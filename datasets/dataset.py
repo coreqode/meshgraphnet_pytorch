@@ -1,27 +1,35 @@
 import torch
-
 from torch.utils.data import Dataset, IterableDataset
 from tfrecord.torch.dataset import TFRecordDataset
 import os
 import json
 import numpy as np
 import glob
+from natsort import natsorted
+import random
 
 class FlagSimpleDataset(torch.utils.data.Dataset):
-    def __init__(self, device, path, split, node_info, use_tfrecord = False, history=False, augmentation=False):
+    def __init__(self, device, path, split, split_ratio, node_info, use_tfrecord = False, history=False, augmentation=True):
         self.path = path
         self.split = split
         self.history = history
         self.augmentation = augmentation
         self.device = device
         self.node_info = node_info
+        self.split_ratio = split_ratio
 
         if use_tfrecord:
             self.dataset = self.get_tfrecord_dataset()
             self.get_meta()
         else:
             filepath  = os.path.join(path, '*.npz')
-            self.all_files = glob.glob(filepath)
+            self.all_files = natsorted(glob.glob(filepath))
+        
+        if split == 'train':
+            random.shuffle(self.all_files)
+            self.all_files = self.all_files[:int(self.split_ratio * len(self.all_files))]
+        elif split == 'valid':
+            self.all_files = self.all_files[int(self.split_ratio * len(self.all_files)):]
     
     def get_tfrecord_dataset(self):
         if split == 'train':
@@ -48,11 +56,7 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
                 self.types[key] = field['type']
 
     def __len__(self):
-        # flag simple dataset contains 1000 trajectories, each trajectory contains 400 steps
-        if self.split == 'train':
-            return 1000
-        elif self.split == 'valid':
-            return 100
+        return len(self.all_files)
 
     def __getitem__(self, idx):
         sample_path = self.all_files[idx]
@@ -75,12 +79,6 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
 
         if self.augmentation:
             data = self.split_and_preprocess()(data)
-
-
-        # data['world_pos'] = torch.from_numpy(data['world_pos']).float()
-        # data['mesh_pos'] = torch.from_numpy(data['mesh_pos']).float()
-        # data['node_type'] = torch.from_numpy(data['node_type']).long()
-        # data['cells'] = torch.from_numpy(data['cells']).long()
 
         return data, data
 
