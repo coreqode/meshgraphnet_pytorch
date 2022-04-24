@@ -1,4 +1,5 @@
 import sys
+import os
 import numpy as np
 from torchsummary import summary
 from tqdm import tqdm, trange
@@ -30,12 +31,12 @@ class MGN(BaseModule):
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=self.data_dir+'flag_simple', history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
         
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=self.data_dir+'flag_simple', history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
                                     augmentation = False)
 
@@ -61,20 +62,30 @@ class MGN(BaseModule):
 
         loss = {'mse_loss': error}
         return loss
-
+    
     def inspect_dataset(self):
-        for idx, (model_inputs, data) in enumerate(self.train_loader):
-            model_inputs, data = self.send_to_cuda(model_inputs[0], data[0])
-            out = self.model(model_inputs, is_training = True)
-            print(out)
-            break
+        self.model.to(torch.device("cuda:0"))
+        self.define_optimizer()
+        for idx, (data0, data1) in tqdm(enumerate(self.train_loader)):
+            for i in range(len(data1))[:self.trajectory_length]:
+                model_inputs = data0[i]
+                data = data1[i]
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                predictions = self.model(model_inputs)
+                self.optimizer.zero_grad()
+                losses = self.loss_func(data, predictions)
+                total_loss = sum(losses.values())
+                total_loss.backward()
+                self.optimizer.step()
+                #self.update_loss_meter(losses)
+            #break
         
 def main():
     parser = options.get_parser()
     h = MGN(parser)
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
-    # h.inspect_dataset()
+    #h.inspect_dataset()
     h.train()
 
 

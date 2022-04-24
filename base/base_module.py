@@ -101,8 +101,7 @@ class BaseModule:
     def train_step_zero(self, model_inputs, data):
         self.model.train()
         predictions = self.model(model_inputs)
-        losses = self.loss_func(data, predictions)
-        return losses
+        return self.loss_func(data, predictions)
 
     def train_step(self, model_inputs, data):
         self.model.train()
@@ -113,7 +112,7 @@ class BaseModule:
         total_loss.backward()
         self.optimizer.step()
         self.update_loss_meter(losses)
-
+        del losses
         return predictions
 
     def val_step(self, model_inputs, data):
@@ -125,7 +124,7 @@ class BaseModule:
 
     def update_loss_meter(self, losses):
         for name, meter in self.loss_meter.items():
-            meter.append(losses[name])
+            meter.append(losses[name].detach().cpu())
 
     def print_loss_metrics(self):
         strings = []
@@ -198,6 +197,7 @@ class BaseModule:
                 torch.save(self.model.state_dict(), f'./weights/model_{epoch}.pt' )
                 if self.wandb:
                     self.wandb.save(f'./weights/model_{epoch}.pt')
+
             # ----------------------Training Loop -----------------------------#
             # -----------------------------------------------------------------#
             num_iterations = self.trainset_length
@@ -205,20 +205,19 @@ class BaseModule:
             for batch_idx, (data0, data1) in enumerate(self.train_loader):
                 if isinstance(data1, list):
                     for i in range(len(data1))[:self.trajectory_length]:
-                        model_inputs = data0[i]
-                        data = data1[i]
-                        model_inputs, data = self.send_to_cuda(model_inputs, data)
+                        model_inputs, data = self.send_to_cuda(data0[i], data1[i])
 
                         if (batch_idx == 0) and (epoch == self.start_epoch):
                             losses = self.train_step_zero(model_inputs, data)
                             self.define_loss_meter(losses)
+                            del losses
 
                         predictions = self.train_step(model_inputs, data)
 
                         if self.wandb and (batch_idx % self.wandb_log_interval == 0):
                             for name, loss in self.loss_meter.items():
                                 _loss = torch.mean(torch.FloatTensor(loss))
-                                _loss = _loss.detach().cpu().numpy()
+                                #_loss = _loss.detach().cpu().numpy()
                                 self.wandb.log({name: _loss})
 
                 Bar.suffix = f"{batch_idx+1}/{num_iterations} | Total: {bar.elapsed_td:} | ETA: {bar.eta_td:} | {self.print_loss_metrics()}"
@@ -236,11 +235,9 @@ class BaseModule:
                     for batch_idx, (data0, data1) in enumerate(self.val_loader):
                         if isinstance(data1, list):
                             for i in range(len(data1))[:self.trajectory_length]:
-                                model_inputs = data0[i]
-                                data = data1[i]
 
-                                model_inputs, data = self.send_to_cuda(model_inputs, data)
-                                predictions = self.val_step(model_inputs, data)
+                                model_inputs, data = self.send_to_cuda(data0[i], data[i])
+                                _ = self.val_step(model_inputs, data)
 
                                 if self.wandb and (batch_idx % self.wandb_log_interval == 0):
                                     for name, loss in self.loss_meter.items():
@@ -251,7 +248,6 @@ class BaseModule:
                     Bar.suffix = f"{batch_idx+1}/{num_iterations} | Total: {bar.elapsed_td:} | ETA: {bar.eta_td:} | {self.print_loss_metrics()}"
                     bar.next()
                 bar.finish()
-
 
 
             self.initepoch()
