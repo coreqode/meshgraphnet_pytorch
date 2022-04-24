@@ -45,12 +45,12 @@ class MGN(BaseModule):
         self.model = Model(self.device, size =3, batchsize=self.train_batch_size)
 
     def loss_func(self, data, predictions):
-        world_pos = data['world_pos']
-        prev_world_pos = data['prev|world_pos']
-        target_world_pos = data['target|world_pos']
-        cur_position = world_pos
-        prev_position = prev_world_pos
-        target_position = target_world_pos
+        # world_pos = data['world_pos']
+        # prev_world_pos = data['prev|world_pos']
+        # target_world_pos = data['target|world_pos']
+        cur_position = data['world_pos']
+        prev_position = data['prev|world_pos']
+        target_position = data['target|world_pos']
         target_acceleration = target_position - 2 * cur_position + prev_position
         target_normalized = self.model.get_output_normalizer()(target_acceleration)
 
