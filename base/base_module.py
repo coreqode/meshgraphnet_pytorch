@@ -53,7 +53,8 @@ class BaseModule:
             num_workers=self.num_workers,
             prefetch_factor = self.prefetch_factor,
             pin_memory=self.pin_memory,
-            collate_fn = self.collate_fn
+            collate_fn = self.collate_fn,
+            drop_last=True
         )
         self.val_loader = torch.utils.data.DataLoader(
             self.val_dataset,
@@ -62,7 +63,8 @@ class BaseModule:
             num_workers=self.num_workers,
             prefetch_factor = self.prefetch_factor,
             pin_memory=self.pin_memory,
-            collate_fn = self.collate_fn
+            collate_fn = self.collate_fn,
+            drop_last=True
         )
         self.trainset_length = len(self.train_loader)
         self.valset_length = len(self.val_loader)
