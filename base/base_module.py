@@ -85,6 +85,10 @@ class BaseModule:
     def define_model(self):
         pass
 
+    def load_checkpoint(self, path):
+        chk = torch.load(path, map_location = self.device)
+        self.model.load_state_dict(chk)
+
     def loss_func(self):
         pass
 

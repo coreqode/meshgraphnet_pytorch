@@ -15,7 +15,6 @@ class Model(nn.Module):
         self._node_normalizer = Normalizer(self.device , size=3 + NodeType.SIZE, batchsize=batchsize)
         # self._node_dynamic_normalizer = Normalizer(self.device, size=1)
         self._mesh_edge_normalizer = Normalizer(self.device, size=7, batchsize=batchsize)  # 2D coord + 3D coord + 2*length = 7
-        self._world_edge_normalizer = Normalizer(self.device, size=4,batchsize=batchsize) # why world_edge_normalizer?
 
         self.core_model = encode_process_decode
         self.message_passing_steps = message_passing_steps
@@ -34,6 +33,7 @@ class Model(nn.Module):
         node_type = inputs['node_type']
         mesh_pos = inputs['mesh_pos']
         cells = inputs['cells']
+
         velocity = world_pos - prev_world_pos
         one_hot_node_type = F.one_hot(node_type[:, :, 0].to(torch.int64), NodeType.SIZE)
 
@@ -70,13 +70,11 @@ class Model(nn.Module):
         if is_training:
             return self.learned_model(graph)
         else:
-            return self._update(inputs, self.learned_model(graph,
-                                                           world_edge_normalizer=self._world_edge_normalizer,
-                                                           )) # why world_edge_normalizer?
+            return self._update(inputs, self.learned_model(graph)) 
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
-
+        
         acceleration = self._output_normalizer.inverse(per_node_network_output)
 
         # integrate forward

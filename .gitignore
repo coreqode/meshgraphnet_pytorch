@@ -8,6 +8,8 @@ __pycache__/
 
 /data/*
 /weights/*
+/output/*
+/wandb/*
 
 # Distribution / packaging
 .Python

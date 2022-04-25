@@ -74,6 +74,7 @@ class GraphNetBlock(nn.Module):
         for edge_set in graph.edge_sets:
             updated_features = self._update_edge_features(graph.node_features, edge_set)
             new_edge_sets.append(edge_set._replace(features=updated_features))
+
         # apply node function
         new_node_features = self._update_node_features(graph.node_features, new_edge_sets)
         # add residual connections
@@ -113,7 +114,8 @@ class EncodeProcessDecode(nn.Module):
 
         self.graphnet_blocks = nn.ModuleList()
         for _ in range(self._message_passing_steps):
-            self.graphnet_blocks.append(GraphNetBlock(model_fn=self._make_mlp, output_size=self._latent_size,
+            self.graphnet_blocks.append(GraphNetBlock(model_fn=self._make_mlp, 
+                                                        output_size=self._latent_size,
                                                       message_passing_aggregator=message_passing_aggregator,
                                                       ))
 
@@ -130,5 +132,6 @@ class EncodeProcessDecode(nn.Module):
         latent_graph = self.encoder(graph)
         for graphnet_block in self.graphnet_blocks:
             latent_graph = graphnet_block(latent_graph)
+
         out = self.decoder(latent_graph.node_features)
         return out
