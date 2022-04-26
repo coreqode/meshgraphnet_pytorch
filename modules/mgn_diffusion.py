@@ -7,11 +7,11 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from base.base_module import BaseModule
-from nets.cloth_model import Model
 from datasets.dataset import FlagSimpleDataset
 from utils import common, options
+from nets.cloth_model_diffusion import DiffusionModel
 
-class MGN(BaseModule):
+class MGNDiffusion(BaseModule):
     def __init__(self, parser):
         super().__init__()
         self.epoch = parser.epochs
@@ -42,7 +42,7 @@ class MGN(BaseModule):
 
 
     def define_model(self):
-        self.model = Model(self.device, size =3, batchsize=self.train_batch_size)
+        self.model = DiffusionModel(self.device, size =3, batchsize=self.train_batch_size)
 
     def loss_func(self, data, predictions):
         # world_pos = data['world_pos']
@@ -70,15 +70,7 @@ class MGN(BaseModule):
             for i in range(len(data1))[:self.trajectory_length]:
                 model_inputs = data0[i]
                 data = data1[i]
-                model_inputs, data = self.send_to_cuda(model_inputs, data)
-                predictions = self.model(model_inputs)
-                self.optimizer.zero_grad()
-                losses = self.loss_func(data, predictions)
-                total_loss = sum(losses.values())
-                total_loss.backward()
-                self.optimizer.step()
-                #self.update_loss_meter(losses)
-            #break
+            break
 
 
             
@@ -94,7 +86,7 @@ class MGN(BaseModule):
         self.model.eval()
         
         for idx, (data0, data1) in tqdm(enumerate(self.train_loader)):
-            for i in range(len(data1))[:self.trajectory_length]:
+            for i in trange(len(data1))[:self.trajectory_length]:
                 model_inputs = data0[i]
                 data = data1[i]
                 cells = data['cells']
@@ -108,19 +100,14 @@ class MGN(BaseModule):
                 mesh.export(os.path.join(dump_path, f'{i}.ply'))
             break
 
-            
-
-
-
-        
 def main():
     parser = options.get_parser()
-    h = MGN(parser)
+    h = MGNDiffusion(parser)
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
-    #h.inspect_dataset()
+    h.inspect_dataset()
     #h.train()
-    h.inference()
+    #h.inference()
 
 
 if __name__ == "__main__":

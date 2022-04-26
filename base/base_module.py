@@ -182,6 +182,10 @@ class BaseModule:
     def train(self):
 
         self.define_model()
+        print("")
+        print("Total number of parameters: ", sum(p.numel() for p in self.model.parameters()))
+        print("Total number of trainable parameters: ", sum(p.numel() for p in self.model.parameters() if p.requires_grad))
+        print("")
         self.define_optimizer()
         self.define_scheduler()
         self.model.to(self.device)
