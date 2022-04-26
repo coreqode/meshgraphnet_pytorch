@@ -22,7 +22,7 @@ class BaseModule:
     def __init__(self):
         self.epochs = 100
         self.patience = 20
-        self.start_epoch = 0
+        self.start_epoch = 1
         self.train_batch_size = 4
         self.val_batch_size = 4
         self.num_workers = 1
@@ -245,8 +245,7 @@ class BaseModule:
                     for batch_idx, (data0, data1) in enumerate(self.val_loader):
                         if isinstance(data1, list):
                             for i in range(len(data1))[:self.trajectory_length]:
-
-                                model_inputs, data = self.send_to_cuda(data0[i], data[i])
+                                model_inputs, data = self.send_to_cuda(data0[i], data1[i])
                                 _ = self.val_step(model_inputs, data)
 
                                 if self.wandb and (batch_idx % self.wandb_log_interval == 0):

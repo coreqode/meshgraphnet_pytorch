@@ -18,7 +18,7 @@ class DiffusionModel(nn.Module):
         self.core_model = encode_process_decode
         self.message_passing_steps = message_passing_steps
         self.message_passing_aggregator = message_passing_aggregator
-        self.learned_model = diffusion_net.layers.DiffusionNet( C_in=3, C_out=3, C_width=128, last_activation=None, outputs_at='vertices')
+        self.learned_model = diffusion_net.layers.DiffusionNet( C_in=12, C_out=3, C_width=128, last_activation=None, outputs_at='vertices')
 
     def _build_graph(self, inputs):
         """Builds input graph."""
@@ -65,8 +65,14 @@ class DiffusionModel(nn.Module):
             verts = inputs['world_pos']
             verts = diffusion_net.geometry.normalize_positions(verts)
             features = graph.node_features
+            mass = inputs['mass']
+            L = inputs['L']
+            evals = inputs['evals']
+            evecs = inputs['evecs']
+            gradX = inputs['gradX']
+            gradY = inputs['gradY']
+            faces = inputs['cells']
             pred = self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
-            print(pred.shape)
             return pred
         else:
             return self._update(inputs, self.learned_model(graph)) 

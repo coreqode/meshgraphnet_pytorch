@@ -31,12 +31,12 @@ class MGNDiffusion(BaseModule):
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple_cache_20'), history = True , 
                                     split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
         
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple_cache_20'), history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
                                     augmentation = False)
 
@@ -70,6 +70,7 @@ class MGNDiffusion(BaseModule):
             for i in range(len(data1))[:self.trajectory_length]:
                 model_inputs = data0[i]
                 data = data1[i]
+                print(model_inputs.keys(), data.keys())
             break
 
 
@@ -103,10 +104,10 @@ class MGNDiffusion(BaseModule):
 def main():
     parser = options.get_parser()
     h = MGNDiffusion(parser)
-    h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
+    h.init(wandb_log=True, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
-    h.inspect_dataset()
-    #h.train()
+    #h.inspect_dataset()
+    h.train()
     #h.inference()
 
 

@@ -24,21 +24,24 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
         self.make_cache = make_cache
         self.cache_path = cache_path
 
-        if use_tfrecord:
-            self.dataset = self.get_tfrecord_dataset()
-            self.get_meta()
-        else:
-            filepath  = os.path.join(path, '*.npz')
-            self.all_files = natsorted(glob.glob(filepath))
-
         if self.make_cache:
+            if use_tfrecord:
+                self.dataset = self.get_tfrecord_dataset()
+                self.get_meta()
+            else:
+                filepath  = os.path.join(path, '*.npz')
+                self.all_files = natsorted(glob.glob(filepath))
             self.make_cache_dataset()
+            return
+        else:
+            filepath  = os.path.join(path, '*.pkl')
+            self.all_files = natsorted(glob.glob(filepath))
         
-        #if split == 'train':
-        #    random.shuffle(self.all_files)
-        #    self.all_files = self.all_files[:int(self.split_ratio * len(self.all_files))]
-        #elif split == 'valid':
-        #    self.all_files = self.all_files[int(self.split_ratio * len(self.all_files)):]
+        if split == 'train':
+            self.all_files = self.all_files[:int(self.split_ratio * len(self.all_files))]
+            random.shuffle(self.all_files)
+        elif split == 'valid':
+            self.all_files = self.all_files[int(self.split_ratio * len(self.all_files)):]
     
     def get_tfrecord_dataset(self):
         if split == 'train':
@@ -68,7 +71,10 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
         return len(self.all_files)
 
     def __getitem__(self, idx):
-        pass
+        sample_path = self.all_files[idx]
+        with open(sample_path, 'rb') as fi:
+            sample = pickle.load(fi)
+        return sample, sample
 
     def make_cache_dataset(self):
         for idx in trange(len(self.all_files)):
