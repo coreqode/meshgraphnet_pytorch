@@ -42,13 +42,32 @@ class Model(nn.Module):
         decomposed_cells = triangles_to_edges(cells)
         senders, receivers = decomposed_cells['two_way_connectivity']
 
-        #print(mesh_pos[:, senders[0][0]] - mesh_pos[:, receivers[0][0]]) we are doing this here
-        # as all the batch have same value of senders, we are sending values of the first batch
-        relative_world_pos = (torch.index_select(input=world_pos, dim=1, index=senders[0]) -
-                              torch.index_select(input=world_pos, dim=1, index=receivers[0]))
-        relative_mesh_pos = (torch.index_select(mesh_pos, 1, senders[0]) -
-                             torch.index_select(mesh_pos, 1, receivers[0]))
+        svalues = []
+        rvalues = []
+        for batch_no in range(world_pos.shape[0]):
+            svalues.append(torch.index_select(input=world_pos[batch_no,:,:], dim=0, index=senders[batch_no]).unsqueeze(0))
+            rvalues.append(torch.index_select(input=world_pos[batch_no,:,:], dim=0, index=receivers[batch_no]).unsqueeze(0))
+        svalues = torch.cat(svalues, dim=0)
+        rvalues = torch.cat(rvalues, dim=0)
 
+        relative_world_pos = svalues-rvalues
+
+        # relative_world_pos = (torch.index_select(input=world_pos, dim=1, index=senders[0]) -
+        #                       torch.index_select(input=world_pos, dim=1, index=receivers[0]))
+
+        svalues = []
+        rvalues = []
+        for batch_no in range(mesh_pos.shape[0]):
+            svalues.append(torch.index_select(input=mesh_pos[batch_no,:,:], dim=0, index=senders[batch_no]).unsqueeze(0))
+            rvalues.append(torch.index_select(input=mesh_pos[batch_no,:,:], dim=0, index=receivers[batch_no]).unsqueeze(0))
+        svalues = torch.cat(svalues, dim=0)
+        rvalues = torch.cat(rvalues, dim=0)
+
+        relative_mesh_pos = svalues-rvalues
+
+        # relative_mesh_pos = (torch.index_select(mesh_pos, 1, senders[0]) -
+        #                      torch.index_select(mesh_pos, 1, receivers[0]))
+        
         edge_features = torch.cat((
             relative_world_pos, torch.norm(relative_world_pos, dim=-1, keepdim=True),
             relative_mesh_pos, torch.norm(relative_mesh_pos, dim=-1, keepdim=True)), dim=-1)
