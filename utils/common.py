@@ -86,13 +86,19 @@ def unsorted_segment_operation(device, data, segment_ids, num_segments, operatio
         assert all([i in data.shape for i in segment_ids.shape]), "segment_ids.shape should be a prefix of data.shape"
 
         # segment_ids is a 1-D tensor repeat it to have the same shape as data
-        data = data.to(device)
-        segment_ids = segment_ids[0].to(device)
-        if len(segment_ids.shape) == 1:
-            s = torch.prod(torch.tensor(data.shape[2:])).long().to(device)
-            segment_ids = segment_ids.repeat_interleave(s).view(segment_ids.shape[0], *data.shape[2:]).to(device)
 
-            segment_ids = torch.unsqueeze(segment_ids, dim=0).repeat(data.shape[0],1,1)
+        data = data.to(device)
+
+        segids = []
+        for batch_no in range(data.shape[0]):
+            dummy = segment_ids[batch_no]
+            if len(dummy.shape) == 1:
+                s = torch.prod(torch.tensor(data.shape[2:])).long().to(device)
+                segids.append(dummy.repeat_interleave(s).view(dummy.shape[0], *data.shape[2:]).unsqueeze(0))
+        segment_ids = torch.cat(segids, dim=0)
+        del dummy
+        del segids
+        # segment_ids = torch.unsqueeze(segment_ids, dim=0).repeat(data.shape[0],1,1)
 
         assert data.shape == segment_ids.shape, "data.shape and segment_ids.shape should be equal"
 

@@ -67,12 +67,16 @@ class Model(nn.Module):
 
         # relative_mesh_pos = (torch.index_select(mesh_pos, 1, senders[0]) -
         #                      torch.index_select(mesh_pos, 1, receivers[0]))
-        
+
+        del svalues
+        del rvalues
+
         edge_features = torch.cat((
             relative_world_pos, torch.norm(relative_world_pos, dim=-1, keepdim=True),
             relative_mesh_pos, torch.norm(relative_mesh_pos, dim=-1, keepdim=True)), dim=-1)
 
-        # not clear where are we making and using world edges as given in paper
+
+        # we are not using world edges here are there is no iteractive with an external object
         mesh_edges = self.core_model.EdgeSet(
             name='mesh_edges',
             features=self._mesh_edge_normalizer(edge_features),

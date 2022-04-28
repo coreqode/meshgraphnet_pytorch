@@ -59,7 +59,7 @@ class MGN(BaseModule):
         error = (target_normalized - predictions) ** 2
         error = torch.sum(error , dim = 2)
         error = torch.mean(error[loss_mask])
-
+        
         loss = {'mse_loss': error}
         return loss
     

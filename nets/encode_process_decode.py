@@ -50,12 +50,21 @@ class GraphNetBlock(nn.Module):
         senders = edge_set.senders.to(device)
         receivers = edge_set.receivers.to(device)
 
-        # as all the batch have same value of senders, we are sending values of the first batch
-        sender_features = torch.index_select(input=node_features, dim=1, index=senders[0])
-        receiver_features = torch.index_select(input=node_features, dim=1, index=receivers[0])
+        sfeats = []
+        rfeats = []
+        for batch_no in range(node_features.shape[0]):
+            sfeats.append(torch.index_select(input=node_features[batch_no,:,:], dim=0, index=senders[batch_no]).unsqueeze(0))
+            rfeats.append(torch.index_select(input=node_features[batch_no,:,:], dim=0, index=receivers[batch_no]).unsqueeze(0))
+        sender_features = torch.cat(sfeats, dim=0)
+        receiver_features = torch.cat(rfeats, dim=0)
+        # sender_features = torch.index_select(input=node_features, dim=1, index=senders[0])
+        # receiver_features = torch.index_select(input=node_features, dim=1, index=receivers[0])
+        del sfeats
+        del rfeats
+
         features = [sender_features, receiver_features, edge_set.features]
         features = torch.cat(features, dim=-1)
-        return self.mesh_edge_model(features)
+        return self.mesh_edge_model(features) #using lazy linear, as input is not needed to be specified
 
     def _update_node_features(self, node_features, edge_sets):
         """Aggregrates edge features, and applies node function."""
