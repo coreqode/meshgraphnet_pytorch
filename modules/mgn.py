@@ -1,5 +1,6 @@
 import sys
 import os
+import random
 import numpy as np
 from torchsummary import summary
 from tqdm import tqdm, trange
@@ -10,12 +11,15 @@ from base.base_module import BaseModule
 from nets.cloth_model import Model
 from datasets.dataset import FlagSimpleDataset
 from utils import common, options
+from utils.common import sample_points_triangulation
 
 class MGN(BaseModule):
     def __init__(self, parser):
         super().__init__()
         self.epoch = parser.epochs
         self.data_dir = parser.data_dir
+        self.if_sampling = parser.if_sampling
+        self.sample_n_points = parser.sample_n_points
         self.num_workers = parser.num_worker
         self.train_batch_size = parser.train_batch_size
         self.val_batch_size = parser.val_batch_size
@@ -34,7 +38,7 @@ class MGN(BaseModule):
                                     path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
-        
+
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
                                     path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
@@ -42,7 +46,7 @@ class MGN(BaseModule):
 
 
     def define_model(self):
-        self.model = Model(self.device, size =3, batchsize=self.train_batch_size)
+        self.model = Model(self.device, size =3, batchsize=self.train_batch_size, if_sampling=self.if_sampling, sample_n_points=self.sample_n_points)
 
     def loss_func(self, data, predictions):
         # world_pos = data['world_pos']

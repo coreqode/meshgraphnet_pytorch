@@ -1,6 +1,9 @@
 import enum
 import torch
 import torch_scatter
+import random
+import numpy as np 
+from scipy.spatial import Delaunay
 
 class NodeType(enum.IntEnum):
     NORMAL = 0
@@ -23,6 +26,31 @@ def triangles_to_edges(faces):
     receivers = receivers.to(torch.int64)
     two_way_connectivity = (torch.cat((senders, receivers), dim=1), torch.cat((receivers, senders), dim=1))
     return {'two_way_connectivity': two_way_connectivity, 'senders': senders, 'receivers': receivers}
+
+def save_points(points, name):
+    if not torch.is_tensor(points):
+        points = torch.tensor(points)
+    if points.shape[1] == 2:
+        np.savetxt(name, torch.cat((points.cpu(), torch.zeros(points.shape[0],1)), dim=1))
+    if points.shape[1] == 3:
+        np.savetxt(name, points.cpu())
+
+def sample_points_triangulation(points_xyz, points_xy, n_points):
+    pick = random.sample(range(0,points_xyz.shape[0]), n_points)
+    dw, dm = points_xyz[pick], points_xy[pick]
+    
+    tri = Delaunay(dm.cpu().numpy())
+
+    return dw, dm, torch.from_numpy(tri.simplices), torch.from_numpy(np.array(pick))
+
+
+    # save_points(dw, "dw.xyz")
+    # save_points(tri.simplices, "tri.xyz")
+    # save_points(dm, "mesh2_small.xyz")
+
+    # np.savetxt("mesh.xyz", )
+    # np.savetxt("points.xyz", data0[15]['world_pos'][0])
+
 
 class Normalizer(torch.nn.Module):
     """Feature normalizer that accumulates statistics online."""
