@@ -18,6 +18,7 @@ class MGN(BaseModule):
         super().__init__()
         self.epoch = parser.epochs
         self.data_dir = parser.data_dir
+        self.save_dir = parser.save_dir
         self.if_sampling = parser.if_sampling
         self.sample_n_points = parser.sample_n_points
         self.num_workers = parser.num_worker
@@ -31,7 +32,7 @@ class MGN(BaseModule):
         self.node_info = {'NORMAL': 0}
         self.trajectory_length = parser.trajectory_length
         self.split_ratio = parser.split_ratio
-        self.val_freq = 2000
+        self.val_freq = 2
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
@@ -48,17 +49,34 @@ class MGN(BaseModule):
     def define_model(self):
         self.model = Model(self.device, size =3, batchsize=self.train_batch_size, if_sampling=self.if_sampling, sample_n_points=self.sample_n_points)
 
-    def loss_func(self, data, predictions):
+    def loss_func(self, data, predictions, sampled_inputs):
         # world_pos = data['world_pos']
         # prev_world_pos = data['prev|world_pos']
         # target_world_pos = data['target|world_pos']
-        cur_position = data['world_pos']
-        prev_position = data['prev|world_pos']
-        target_position = data['target|world_pos']
+        
+        # print(sampled_inputs['picked_indexes'])
+        # cur_position = data['target|world_pos']
+        # cp=[]
+        # for batch_no in range(data['target|world_pos'].shape[0]):
+        #     cp.append(torch.index_select(input=cur_position[batch_no,:,:], dim=0, index=sampled_inputs['picked_indexes'][batch_no].to(self.device)).unsqueeze(0))
+        #     print(cp[batch_no][0][:10])
+        #     print()
+        #     print(sampled_inputs['target|world_pos'][0][:10])
+        #     exit()
+        if sampled_inputs != "None":
+            cur_position = sampled_inputs['world_pos']
+            prev_position = sampled_inputs['prev|world_pos']
+            target_position = sampled_inputs['target|world_pos']
+            node_type = sampled_inputs['node_type']
+        if sampled_inputs == "None":
+            cur_position = data['world_pos']
+            prev_position = data['prev|world_pos']
+            target_position = data['target|world_pos']
+            node_type = data['node_type']
+
         target_acceleration = target_position - 2 * cur_position + prev_position
         target_normalized = self.model.get_output_normalizer()(target_acceleration)
 
-        node_type = data['node_type']
         loss_mask = torch.eq(node_type[:, :, 0], torch.tensor([common.NodeType.NORMAL.value]).to(self.device).int())
         error = (target_normalized - predictions) ** 2
         error = torch.sum(error , dim = 2)

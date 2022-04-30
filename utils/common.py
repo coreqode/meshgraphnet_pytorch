@@ -15,15 +15,49 @@ class NodeType(enum.IntEnum):
     WALL_BOUNDARY = 6
     SIZE = 9
 
-def triangles_to_edges(faces):
-    edges = torch.cat((faces[:, :, 0:2], faces[:, :, 1:3], torch.stack((faces[:, :, 2], faces[:, :, 0]), dim=2)), dim=1)
-    receivers, _ = torch.min(edges, dim=2)
-    senders, _ = torch.max(edges, dim=2)
-    packed_edges = torch.stack((senders, receivers), dim=2)
-    unique_edges = torch.unique(packed_edges, return_inverse=False, return_counts=False, dim=1)
-    senders, receivers = torch.unbind(unique_edges, dim=2)
-    senders = senders.to(torch.int64)
-    receivers = receivers.to(torch.int64)
+def triangles_to_edges(faces, small):
+    if small == "True":
+        sends, recs = [], []
+        maxx = -1
+        for batch_face in faces:
+            edge = torch.cat((batch_face[:, 0:2], batch_face[:, 1:3], torch.stack((batch_face[:, 2], batch_face[:, 0]), dim=1)), dim=0)
+            receivers, _ = torch.min(edge, dim=1)
+            senders, _ = torch.max(edge, dim=1)
+            packed_edges = torch.stack((senders, receivers), dim=1)
+            unique_edges = torch.unique(packed_edges, return_inverse=False, return_counts=False, dim=0)
+            senders, receivers = torch.unbind(unique_edges, dim=1)
+            if maxx < senders.shape[0]:
+                maxx = senders.shape[0]
+            sends.append(senders)
+            recs.append(receivers)
+
+        for i in range(len(sends)): #this for loop for making consistent edges across all batches
+            if sends[i].shape[0]<maxx:
+                times = maxx-sends[i].shape[0]
+                nn = int(sends[i][-1])
+                sends[i] = torch.cat((sends[i], torch.tensor([nn]*times))).unsqueeze(0)
+                nn = int(recs[i][-1])
+                recs[i] = torch.cat((recs[i], torch.tensor([nn]*times))).unsqueeze(0)
+            if sends[i].shape[0] == maxx:
+                sends[i] = sends[i].unsqueeze(0)
+                recs[i] = recs[i].unsqueeze(0)
+
+        senders = torch.cat(sends, dim=0)
+        receivers =  torch.cat(recs, dim=0)
+        senders = senders.to(torch.int64)
+        receivers = receivers.to(torch.int64)
+        del sends, recs
+
+    else:
+        edges = torch.cat((faces[:, :, 0:2], faces[:, :, 1:3], torch.stack((faces[:, :, 2], faces[:, :, 0]), dim=2)), dim=1)
+        receivers, _ = torch.min(edges, dim=2)
+        senders, _ = torch.max(edges, dim=2)
+        packed_edges = torch.stack((senders, receivers), dim=2)
+        unique_edges = torch.unique(packed_edges, return_inverse=False, return_counts=False, dim=1)
+        senders, receivers = torch.unbind(unique_edges, dim=2)
+        senders = senders.to(torch.int64)
+        receivers = receivers.to(torch.int64)
+
     two_way_connectivity = (torch.cat((senders, receivers), dim=1), torch.cat((receivers, senders), dim=1))
     return {'two_way_connectivity': two_way_connectivity, 'senders': senders, 'receivers': receivers}
 
@@ -38,7 +72,7 @@ def save_points(points, name):
 def sample_points_triangulation(points_xyz, points_xy, n_points):
     pick = random.sample(range(0,points_xyz.shape[0]), n_points)
     dw, dm = points_xyz[pick], points_xy[pick]
-    
+
     tri = Delaunay(dm.cpu().numpy())
 
     return dw, dm, torch.from_numpy(tri.simplices), torch.from_numpy(np.array(pick))

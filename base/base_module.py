@@ -9,6 +9,7 @@ import os
 import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 
 from torch.utils.data.dataset import random_split
 import torch.optim as optim
@@ -35,6 +36,9 @@ class BaseModule:
         self.val_shuffle = False
         self.prefetch_factor = 2
         self.pin_memory = True
+        self.glob_iter=0
+        self.val_glob_iter=0
+        self.torchsummary_log = True
 
     def init(self, wandb_log = False, project =None, entity = None):
         train_on_gpu = torch.cuda.is_available()
@@ -102,14 +106,17 @@ class BaseModule:
 
     def train_step_zero(self, model_inputs, data):
         self.model.train()
-        predictions = self.model(model_inputs)
-        return self.loss_func(data, predictions)
+        predictions, sampled_inputs = self.model(model_inputs)
+        return self.loss_func(data, predictions, sampled_inputs)
 
     def train_step(self, model_inputs, data):
         self.model.train()
         self.optimizer.zero_grad()
-        predictions = self.model(model_inputs)
-        losses = self.loss_func(data, predictions)
+        predictions, sampled_inputs = self.model(model_inputs)
+        losses = self.loss_func(data, predictions, sampled_inputs)
+        self.glob_iter +=1
+        if self.torchsummary_log:
+            self.WRITER.add_scalar('Train/loss', sum(losses.values()).item(), self.glob_iter)
         total_loss = sum(losses.values())
         total_loss.backward()
         self.optimizer.step()
@@ -119,8 +126,11 @@ class BaseModule:
 
     def val_step(self, model_inputs, data):
         self.model.eval()
-        predictions = self.model(model_inputs)
-        losses = self.loss_func(data, predictions)
+        predictions, sampled_inputs = self.model(model_inputs)
+        losses = self.loss_func(data, predictions, sampled_inputs)
+        self.val_glob_iter +=1
+        if self.torchsummary_log:
+            self.WRITER.add_scalar('Val/loss', sum(losses.values()).item(), self.val_glob_iter)
         self.update_loss_meter(losses)
         return losses
 
@@ -182,6 +192,10 @@ class BaseModule:
         self.define_scheduler()
         self.model.to(self.device)
 
+        if self.torchsummary_log:
+            self.WRITER = SummaryWriter(log_dir=self.save_dir+'weights')
+
+
         if self.wandb:
             self.wandb.watch(self.model)
 
@@ -194,11 +208,12 @@ class BaseModule:
 
 
             if epoch % self.save_freq == 0:
-                if not os.path.isdir('./weights'):
-                    os.system('mkdir weights')
-                torch.save(self.model.state_dict(), f'./weights/model_{epoch}.pt' )
+                if not os.path.isdir(self.save_dir+'weights'):
+                    # os.system('mkdir weights')
+                    os.mkdir(self.save_dir+'weights')
+                torch.save(self.model.state_dict(), self.save_dir+f'weights/model_{epoch}.pt' )
                 if self.wandb:
-                    self.wandb.save(f'./weights/model_{epoch}.pt')
+                    self.wandb.save(self.save_dir+f'./weights/model_{epoch}.pt')
 
             # ----------------------Training Loop -----------------------------#
             # -----------------------------------------------------------------#

@@ -29,67 +29,25 @@ class Model(nn.Module):
             message_passing_steps=self.message_passing_steps,
             message_passing_aggregator=self.message_passing_aggregator, )
 
-    def _build_graph(self, inputs, if_sampling, is_training, sample_n_points=0):
-        """Builds input graph.
-        if_sampling = True, if want to sample vertices and build its mesh
-        sample_n_points = (int), number of vertices to sample from the original mesh nodes."""
+    def _build_graph(self, inputs, small):
+        """Builds input graph."""
 
         world_pos = inputs['world_pos'] #
         prev_world_pos = inputs['prev|world_pos'] #
         node_type = inputs['node_type'] #
         mesh_pos = inputs['mesh_pos'] #
-        # prev_mesh_pos = inputs['prev|mesh_pos']
         cells = inputs['cells'] #
-
-        if is_training and if_sampling:
-
-            sampled_world_pos, sampled_prev_world_pos, sampled_node_type, sampled_mesh_pos, sampled_cells, picked_indexes = [], [], [], [], [], []
-
-            for batch_no in range(world_pos.shape[0]): 
-                s_world_pos, s_mesh_pos, s_cells, index = sample_points_triangulation(world_pos[batch_no], mesh_pos[batch_no], sample_n_points)
-                sampled_world_pos.append(s_world_pos.unsqueeze(0))
-                sampled_mesh_pos.append(s_mesh_pos.unsqueeze(0))
-                sampled_cells.append(s_cells.unsqueeze(0))
-                print(s_cells.unsqueeze(0).shape)
-                picked_indexes.append(index.unsqueeze(0))
-
-                s_node_type = node_type[batch_no][index]
-                s_prev_world_pos = prev_world_pos[batch_no][index]
-                sampled_node_type.append(s_node_type.unsqueeze(0))
-                sampled_prev_world_pos.append(s_prev_world_pos.unsqueeze(0))
-
-
-            sampled_world_pos = torch.cat(sampled_world_pos, dim=0)
-            sampled_mesh_pos = torch.cat(sampled_mesh_pos, dim=0)
-            sampled_cells = torch.cat(sampled_cells, dim=0)
-            picked_indexes = torch.cat(picked_indexes, dim=0)
-            sampled_node_type = torch.cat(sampled_node_type, dim=0)
-            sampled_prev_world_pos = torch.cat(sampled_prev_world_pos, dim=0)
-
-        print(world_pos.shape, sampled_world_pos.shape)
-        print(prev_world_pos.shape, sampled_prev_world_pos.shape)
-        print(node_type.shape, sampled_node_type.shape)
-        print(mesh_pos.shape, sampled_mesh_pos.shape)
-        print(cells.shape, sampled_cells.shape)
-        print(picked_indexes.shape)
-        exit()
-            
-
-
-
-
-        exit()
-
-
-
 
         velocity = world_pos - prev_world_pos
         one_hot_node_type = F.one_hot(node_type[:, :, 0].to(torch.int64), NodeType.SIZE)
 
         node_features = torch.cat((velocity, one_hot_node_type), dim=-1)
 
-        decomposed_cells = triangles_to_edges(cells)
+        decomposed_cells = triangles_to_edges(cells, small)
         senders, receivers = decomposed_cells['two_way_connectivity']
+        if senders.device != self.device:
+            senders = senders.to(self.device)
+            receivers = receivers.to(self.device)
 
         svalues = []
         rvalues = []
@@ -138,10 +96,48 @@ class Model(nn.Module):
     def forward(self, inputs):
         is_training = self.training
 
-        graph = self._build_graph(inputs, self.if_sampling, is_training, self.sample_n_points)
+        #inputs: this contains info of the original graph
+        #small_inputs: this contains info of the small sampled graph
+
+        if self.if_sampling=="True" and is_training:
+            small_inputs = {}
+
+            sampled_world_pos, sampled_prev_world_pos, sampled_node_type, sampled_mesh_pos, sampled_cells, picked_indexes, sampled_target_world_pos = [], [], [], [], [], [], []
+            for batch_no in range(inputs["world_pos"].shape[0]): 
+                s_world_pos, s_mesh_pos, s_cells, index = sample_points_triangulation(inputs["world_pos"][batch_no], inputs["mesh_pos"][batch_no], self.sample_n_points)
+
+                sampled_world_pos.append(s_world_pos.unsqueeze(0))
+                sampled_mesh_pos.append(s_mesh_pos.unsqueeze(0))
+                sampled_cells.append(s_cells) #.unsqueeze(0)
+                picked_indexes.append(index.unsqueeze(0))
+
+                s_node_type = inputs["node_type"][batch_no][index]
+                s_prev_world_pos = inputs["prev|world_pos"][batch_no][index]
+                s_target_world_pos = inputs["target|world_pos"][batch_no][index]
+                sampled_node_type.append(s_node_type.unsqueeze(0))
+                sampled_prev_world_pos.append(s_prev_world_pos.unsqueeze(0))
+                sampled_target_world_pos.append(s_target_world_pos.unsqueeze(0))
+            del s_world_pos, s_mesh_pos, s_cells, index, s_node_type, s_prev_world_pos
+
+            small_inputs["world_pos"] = torch.cat(sampled_world_pos, dim=0)
+            small_inputs["mesh_pos"] = torch.cat(sampled_mesh_pos, dim=0)
+            small_inputs["cells"] =  sampled_cells #torch.cat(sampled_cells, dim=0)
+            small_inputs["picked_indexes"] = torch.cat(picked_indexes, dim=0)
+            small_inputs["node_type"] = torch.cat(sampled_node_type, dim=0)
+            small_inputs["prev|world_pos"] = torch.cat(sampled_prev_world_pos, dim=0)
+            small_inputs["target|world_pos"] = torch.cat(sampled_target_world_pos, dim=0)
+            del sampled_world_pos, sampled_prev_world_pos, sampled_node_type, sampled_mesh_pos, sampled_cells, picked_indexes, sampled_target_world_pos
+
+            graph = self._build_graph(small_inputs, small="True")
+
+        else:
+            graph = self._build_graph(inputs, small="False")
 
         if is_training:
-            return self.learned_model(graph)
+            if self.if_sampling=="True":
+                return self.learned_model(graph), small_inputs
+            else:
+                return self.learned_model(graph), "None"
         else:
             return self._update(inputs, self.learned_model(graph,
                                                            world_edge_normalizer=self._world_edge_normalizer,

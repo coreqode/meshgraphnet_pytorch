@@ -20,6 +20,7 @@ def get_parser():
     
     
     parser.add_argument('--data_dir', default='./data/', type=str)
+    parser.add_argument('--save_dir', default='./weights/', type=str)
     parser.add_argument('--exp_name', default='simple_test_run', type=str)
     opts = parser.parse_args()
     return opts
