@@ -61,21 +61,21 @@ class DiffusionModel(nn.Module):
         is_training = self.training
         graph = self._build_graph(inputs)
 
+        verts = inputs['world_pos']
+        verts = diffusion_net.geometry.normalize_positions(verts)
+        features = graph.node_features
+        mass = inputs['mass']
+        L = inputs['L']
+        evals = inputs['evals']
+        evecs = inputs['evecs']
+        gradX = inputs['gradX']
+        gradY = inputs['gradY']
+        faces = inputs['cells']
         if is_training:
-            verts = inputs['world_pos']
-            verts = diffusion_net.geometry.normalize_positions(verts)
-            features = graph.node_features
-            mass = inputs['mass']
-            L = inputs['L']
-            evals = inputs['evals']
-            evecs = inputs['evecs']
-            gradX = inputs['gradX']
-            gradY = inputs['gradY']
-            faces = inputs['cells']
             pred = self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
             return pred
         else:
-            return self._update(inputs, self.learned_model(graph)) 
+            return self._update(inputs, self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)) 
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
