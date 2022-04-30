@@ -40,7 +40,6 @@ class MGN(BaseModule):
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
                                     augmentation = False)
 
-
     def define_model(self):
         self.model = Model(self.device, size =3, batchsize=self.train_batch_size)
 
@@ -79,9 +78,30 @@ class MGN(BaseModule):
                 self.optimizer.step()
                 #self.update_loss_meter(losses)
             #break
-
-
             
+    def rollout(self):
+        import trimesh
+        
+        dump_path = './output/simple_test_run_rollout'
+        os.makedirs(dump_path, exist_ok = True)
+        self.load_checkpoint('./simple_test_run_weights/model_70.pt')
+        self.model.to(torch.device("cuda:0"))
+        self.model.eval()
+        
+        for idx, (data0, data1) in tqdm(enumerate(self.train_loader)):
+            for i in range(len(data1))[:self.trajectory_length]:
+                model_inputs = data0[i]
+                data = data1[i]
+                cells = data['cells']
+                print(cells)
+                exit()
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                with torch.no_grad():
+                    predictions = self.model(model_inputs).detach().cpu().numpy()
+                faces = data['cells'].detach().cpu().numpy()
+                mesh = trimesh.Trimesh(predictions[0], faces[0])
+                mesh.export(os.path.join(dump_path, f'{i}.ply'))
+            break
     def inference(self):
         from matplotlib import animation
         import matplotlib.pyplot as plt
@@ -107,11 +127,6 @@ class MGN(BaseModule):
                 mesh = trimesh.Trimesh(predictions[0], faces[0])
                 mesh.export(os.path.join(dump_path, f'{i}.ply'))
             break
-
-            
-
-
-
         
 def main():
     parser = options.get_parser()
@@ -120,7 +135,8 @@ def main():
     h.define_model()
     #h.inspect_dataset()
     #h.train()
-    h.inference()
+    #h.inference()
+    h.rollout()
 
 
 if __name__ == "__main__":

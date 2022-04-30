@@ -148,7 +148,6 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
             return trajectory_steps
         return element_operation
 
-
 if __name__ == '__main__':
     node_info = {'NORMAL': 0 }
     dataset = FlagSimpleDataset(device='cpu', path='./data/flag_simple', history = True , 

@@ -10,6 +10,8 @@ from base.base_module import BaseModule
 from datasets.dataset import FlagSimpleDataset
 from utils import common, options
 from nets.cloth_model_diffusion import DiffusionModel
+from copy import deepcopy
+import diffusion_net
 
 class MGNDiffusion(BaseModule):
     def __init__(self, parser):
@@ -75,6 +77,51 @@ class MGNDiffusion(BaseModule):
 
 
             
+    def rollout(self):
+        import trimesh
+        
+        dump_path = './output/simple_test_run_diffusion_rollout/'
+        os.makedirs(dump_path, exist_ok = True)
+        self.load_checkpoint('./weights/model_70.pt')
+        self.model.to(torch.device("cuda:0"))
+        self.model.eval()
+        
+        for idx, (data0, data1) in tqdm(enumerate(self.train_loader)):
+            for i in trange(len(data1)):
+                model_inputs = data0[i]
+                data = data1[i]
+                cells = data['cells']
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                with torch.no_grad():
+                    predictions = self.model(model_inputs).detach().cpu()
+                faces = data['cells'].detach().cpu().numpy()
+                mesh = trimesh.Trimesh(predictions[0].numpy(), faces[0])
+                mesh.export(os.path.join(dump_path, f'{i}.ply'))
+                break
+            break
+        
+        for i in range(1, 150):
+            verts = deepcopy(predictions[0])
+            verts = diffusion_net.geometry.normalize_positions(verts)
+            faces = torch.from_numpy(faces[0]).long()
+            frames, mass, L, evals, evecs, gradX, gradY =  diffusion_net.geometry.get_operators(verts, faces)
+            model_inputs['world_pos'] = predictions
+            model_inputs['cells'] = faces.unsqueeze(0)
+            model_inputs['frames'] = frames.unsqueeze(0)
+            model_inputs['mass'] = mass.unsqueeze(0)
+            model_inputs['L'] = L.unsqueeze(0)
+            model_inputs['evals'] = evals.unsqueeze(0)
+            model_inputs['evecs'] = evecs.unsqueeze(0)
+            model_inputs['gradX'] = gradX.unsqueeze(0)
+            model_inputs['gradY'] = gradY.unsqueeze(0)
+            model_inputs, data = self.send_to_cuda(model_inputs, data)
+            with torch.no_grad():
+                predictions = self.model(model_inputs).detach().cpu()
+            faces = data['cells'].detach().cpu().numpy()
+            mesh = trimesh.Trimesh(predictions[0].numpy(), faces[0])
+            mesh.export(os.path.join(dump_path, f'{i}.ply'))
+
+        
     def inference(self):
         from matplotlib import animation
         import matplotlib.pyplot as plt
@@ -106,7 +153,8 @@ def main():
     h.define_model()
     #h.inspect_dataset()
     #h.train()
-    h.inference()
+    #h.inference()
+    h.rollout()
 
 
 if __name__ == "__main__":
