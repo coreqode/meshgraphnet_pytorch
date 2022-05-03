@@ -25,6 +25,7 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
             filepath  = os.path.join(path, '*.npz')
             self.all_files = natsorted(glob.glob(filepath))
 
+
         if split == 'train':
             self.all_files = self.all_files[:int(self.split_ratio * len(self.all_files))]
             random.shuffle(self.all_files)
@@ -90,7 +91,7 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
             mask = (frame['node_type'] == self.node_info['NORMAL']).astype(np.int32)
             mask = np.hstack([mask] * 3)
             noise = np.where(mask, noise, 0)
-            frame['world_pos'] += noise
+            #frame['world_pos'] += noise
             frame['target|world_pos'] += (1.0 - noise_gamma) * noise
             return frame
 
@@ -115,7 +116,6 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
                 trajectory_steps.append(noisy_trajectory_step)
             return trajectory_steps
         return element_operation
-
 
 if __name__ == '__main__':
     node_info = {'NORMAL': 0 }

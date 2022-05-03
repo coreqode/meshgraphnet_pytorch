@@ -44,14 +44,14 @@ class Model(nn.Module):
 
         #print(mesh_pos[:, senders[0][0]] - mesh_pos[:, receivers[0][0]]) we are doing this here
         # as all the batch have same value of senders, we are sending values of the first batch
-        relative_world_pos = (torch.index_select(input=world_pos, dim=1, index=senders[0]) -
-                              torch.index_select(input=world_pos, dim=1, index=receivers[0]))
-        relative_mesh_pos = (torch.index_select(mesh_pos, 1, senders[0]) -
-                             torch.index_select(mesh_pos, 1, receivers[0]))
+        relative_world_pos = (torch.index_select(input=world_pos, dim=1, index=senders[0]) - torch.index_select(input=world_pos, dim=1, index=receivers[0]))
+
+        relative_mesh_pos = (torch.index_select(mesh_pos, 1, senders[0]) - torch.index_select(mesh_pos, 1, receivers[0]))
 
         edge_features = torch.cat((
             relative_world_pos, torch.norm(relative_world_pos, dim=-1, keepdim=True),
             relative_mesh_pos, torch.norm(relative_mesh_pos, dim=-1, keepdim=True)), dim=-1)
+
 
         # not clear where are we making and using world edges as given in paper
         mesh_edges = self.core_model.EdgeSet(
@@ -75,14 +75,26 @@ class Model(nn.Module):
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
         
+        #import pickle
+        #with open('./per_node_features_nahi.pkl', 'wb') as fi:
+        #    pickle.dump(per_node_network_output, fi)
+
         acceleration = self._output_normalizer.inverse(per_node_network_output)
 
         # integrate forward
         cur_position = inputs['world_pos']
         prev_position = inputs['prev|world_pos']
         position = 2 * cur_position + acceleration - prev_position
-        #position[idx1] = cur_position[idx1]
-        #position[idx2] = cur_position[idx2]
+        #u = cur_position - prev_position
+        #velocity = acceleration + u
+        #print("velocity-------------------------")
+        #print(velocity)
+        #print("U-------------------------")
+        #print(u)
+        mask = inputs['node_type'] == 0
+
+        mask = torch.hstack([mask[0]] * 3)
+        position = torch.where(mask, position, cur_position)
 
         return position
 
