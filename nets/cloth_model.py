@@ -139,12 +139,12 @@ class Model(nn.Module):
             else:
                 return self.learned_model(graph), "None"
         else:
-            return self._update(inputs, self.learned_model(graph,
-                                                           world_edge_normalizer=self._world_edge_normalizer,
-                                                           )) # why world_edge_normalizer?
+            return self._update(inputs, self.learned_model(graph)) 
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
+
+        print(per_node_network_output.shape)
 
         acceleration = self._output_normalizer.inverse(per_node_network_output)
 

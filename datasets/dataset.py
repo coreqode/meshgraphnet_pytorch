@@ -26,8 +26,8 @@ class FlagSimpleDataset(torch.utils.data.Dataset):
             self.all_files = natsorted(glob.glob(filepath))
         
         if split == 'train':
-            random.shuffle(self.all_files)
             self.all_files = self.all_files[:int(self.split_ratio * len(self.all_files))]
+            random.shuffle(self.all_files)
         elif split == 'valid':
             self.all_files = self.all_files[int(self.split_ratio * len(self.all_files)):]
     

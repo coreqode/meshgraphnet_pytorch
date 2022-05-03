@@ -43,7 +43,7 @@ class MGN(BaseModule):
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
                                     path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
-                                    augmentation = False)
+                                    augmentation = True)
 
 
     def define_model(self):
@@ -101,6 +101,70 @@ class MGN(BaseModule):
                 self.optimizer.step()
                 #self.update_loss_meter(losses)
             #break
+
+    def rollout(self):
+        import trimesh
+        
+        dump_path = './output/simple_test_run_random'
+        os.makedirs(dump_path, exist_ok = True)
+        self.load_checkpoint('./weights/simple_test_run_random_weights/model_18.pt')
+        self.model.to(torch.device("cuda:0"))
+        self.model.eval()
+        
+        data0, data1 = next(iter(self.train_loader))
+        model_inputs = data0[0]
+        data = data1[0]
+        for i in trange(150):
+            if i == 0:
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                with torch.no_grad():
+                    predictions = self.model(model_inputs)
+
+                current_coord = predictions.detach().cpu()
+                prev_coord = model_inputs['world_pos']
+
+            else:
+                model_inputs['world_pos'] = current_coord
+                model_inputs['prev|world_pos'] = prev_coord
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                with torch.no_grad():
+                    predictions = self.model(model_inputs)
+                
+                prev_coord = current_coord.detach().cpu()
+                current_coord = predictions
+
+            error = (model_inputs['target|world_pos'] - predictions) ** 2
+            error = torch.sum(error , dim = 2)
+            error = torch.mean(error)
+            print("error", error)
+
+            faces = data['cells'].detach().cpu().numpy()
+            mesh = trimesh.Trimesh(predictions[0].detach().cpu().numpy(), faces[0])
+            mesh.export(os.path.join(dump_path, f'{i}.ply'))
+
+    def inference(self):
+        from matplotlib import animation
+        import matplotlib.pyplot as plt
+        import trimesh
+        
+        dump_path = './output/simple_test_run_random_val'
+        os.makedirs(dump_path, exist_ok = True)
+        self.load_checkpoint('./weights/simple_test_run_random_weights/model_18.pt')
+        self.model.to(torch.device("cuda:0"))
+        self.model.eval()
+        
+        for idx, (data0, data1) in tqdm(enumerate(self.val_loader)):
+            for i in range(len(data1))[:self.trajectory_length]:
+                model_inputs = data0[i]
+                data = data1[i]
+                cells = data['cells']
+                model_inputs, data = self.send_to_cuda(model_inputs, data)
+                with torch.no_grad():
+                    predictions = self.model(model_inputs).detach().cpu().numpy()
+                faces = data['cells'].detach().cpu().numpy()
+                mesh = trimesh.Trimesh(predictions[0], faces[0])
+                mesh.export(os.path.join(dump_path, f'{i}.ply'))
+            break
         
 def main():
     parser = options.get_parser()
@@ -108,7 +172,9 @@ def main():
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
     #h.inspect_dataset()
-    h.train()
+    #h.train()
+    #h.rollout()
+    h.inference()
 
 
 if __name__ == "__main__":

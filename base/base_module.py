@@ -174,6 +174,10 @@ class BaseModule:
             self.metrics_meter = {metric_name: []
                                for metric_name in self.metrics_meter.keys()}
 
+    def load_checkpoint(self, path):
+        chk = torch.load(path, map_location = self.device)
+        self.model.load_state_dict(chk)
+
     def send_to_cuda(self, model_inputs, data):
         if self.device == 'cpu':
             return model_inputs, data
