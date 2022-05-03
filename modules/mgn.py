@@ -33,6 +33,7 @@ class MGN(BaseModule):
         self.trajectory_length = parser.trajectory_length
         self.split_ratio = parser.split_ratio
         self.val_freq = 2
+        self.mode = parser.mode
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
@@ -105,14 +106,19 @@ class MGN(BaseModule):
     def rollout(self):
         import trimesh
         
-        dump_path = './output/simple_test_run_random'
+        dump_path = '/scratch/sidd/tdl/results/random_sample_rollout_val'
         os.makedirs(dump_path, exist_ok = True)
-        self.load_checkpoint('./weights/simple_test_run_random_weights/model_18.pt')
+        self.load_checkpoint('./weights/random_sample/model_18.pt')
         self.model.to(torch.device("cuda:0"))
         self.model.eval()
         
         data0, data1 = next(iter(self.train_loader))
         model_inputs = data0[0]
+        handle_mask = torch.where(model_inputs['node_type'][:, :, 0]==torch.tensor([common.NodeType.HANDLE.value]).int())
+        handle_world_pos = model_inputs['world_pos'][handle_mask]
+
+        print("handle pos:", handle_world_pos)
+
         data = data1[0]
         for i in trange(150):
             if i == 0:
@@ -120,16 +126,26 @@ class MGN(BaseModule):
                 with torch.no_grad():
                     predictions = self.model(model_inputs)
 
+                # print(model_inputs['world_pos'][handle_mask])
+                # exit()
+
                 current_coord = predictions.detach().cpu()
                 prev_coord = model_inputs['world_pos']
 
             else:
+                # print("current coord:", current_coord)
+                # print()
+                # print("target:", model_inputs['target|world_pos'])
+                # print("--------------------------------------------------")
                 model_inputs['world_pos'] = current_coord
                 model_inputs['prev|world_pos'] = prev_coord
                 model_inputs, data = self.send_to_cuda(model_inputs, data)
                 with torch.no_grad():
                     predictions = self.model(model_inputs)
                 
+
+                predictions[handle_mask] = handle_world_pos.to(self.device)
+
                 prev_coord = current_coord.detach().cpu()
                 current_coord = predictions
 
@@ -140,16 +156,16 @@ class MGN(BaseModule):
 
             faces = data['cells'].detach().cpu().numpy()
             mesh = trimesh.Trimesh(predictions[0].detach().cpu().numpy(), faces[0])
-            mesh.export(os.path.join(dump_path, f'{i}.ply'))
+            # mesh.export(os.path.join(dump_path, f'{i}.ply'))
 
     def inference(self):
         from matplotlib import animation
         import matplotlib.pyplot as plt
         import trimesh
         
-        dump_path = './output/simple_test_run_random_val'
+        dump_path = '/scratch/sidd/tdl/results/random_sample_val'
         os.makedirs(dump_path, exist_ok = True)
-        self.load_checkpoint('./weights/simple_test_run_random_weights/model_18.pt')
+        self.load_checkpoint('./weights/random_sample/model_18.pt')
         self.model.to(torch.device("cuda:0"))
         self.model.eval()
         
@@ -172,9 +188,16 @@ def main():
     h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
     #h.inspect_dataset()
-    #h.train()
-    #h.rollout()
-    h.inference()
+    if h.mode=="train":
+        pass 
+        # h.train()
+    if h.mode=="inference":
+        pass 
+        # h.inference()
+    if h.mode=="rollout":    
+        pass
+        h.rollout()
+    
 
 
 if __name__ == "__main__":

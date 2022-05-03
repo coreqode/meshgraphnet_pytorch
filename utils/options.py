@@ -12,6 +12,7 @@ def get_parser():
     parser.add_argument('--prefetch_factor', default=2, type=int)
     parser.add_argument('--gpus', default=1, type=int)
 
+    parser.add_argument('--mode', default=None, type=str)
     parser.add_argument('--trajectory_length', default=20, type=int)
     parser.add_argument('--if_sampling', default="False", type=str)
     parser.add_argument('--sample_n_points', default=0, type=int)
