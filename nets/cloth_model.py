@@ -81,6 +81,9 @@ class Model(nn.Module):
         cur_position = inputs['world_pos']
         prev_position = inputs['prev|world_pos']
         position = 2 * cur_position + acceleration - prev_position
+        #position[idx1] = cur_position[idx1]
+        #position[idx2] = cur_position[idx2]
+
         return position
 
     def get_output_normalizer(self):
