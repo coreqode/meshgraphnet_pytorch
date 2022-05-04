@@ -138,10 +138,10 @@ class MGN(BaseModule):
         import matplotlib.pyplot as plt
         import trimesh
         
-        dump_path = './output/debug_rollout'
+        dump_path = './output/simple_test_run_120_good_rollout'
         os.makedirs(dump_path, exist_ok = True)
-        self.load_checkpoint('./weights/debug/model_74.pt')
-        self.model.to(torch.device("cuda:0"))
+        self.load_checkpoint('./weights/simple_test_run_120_weights/model_8.pt')
+        self.model.to(torch.device("cuda:3"))
         self.model.eval()
         
         for idx, (data0, data1) in tqdm(enumerate(self.val_loader)):
@@ -164,11 +164,11 @@ class MGN(BaseModule):
 def main():
     parser = options.get_parser()
     h = MGN(parser)
-    h.init(wandb_log=True, project='MeshGraphNet', entity='noldsoul')
+    h.init(wandb_log=False, project='MeshGraphNet', entity='noldsoul')
     h.define_model()
     #h.inspect_dataset()
-    h.train()
-    #h.inference()
+    #h.train()
+    h.inference()
     #h.rollout()
 
 

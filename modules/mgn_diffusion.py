@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from base.base_module import BaseModule
+#from datasets.dataset_diffusion import FlagSimpleDataset
 from datasets.dataset import FlagSimpleDataset
 from utils import common, options
 from nets.cloth_model_diffusion import DiffusionModel
@@ -33,14 +34,14 @@ class MGNDiffusion(BaseModule):
 
     def define_dataset(self):
         self.train_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=os.path.join(self.data_dir, 'flag_simple_cache_20'), history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='train', split_ratio=self.split_ratio,  node_info=self.node_info, 
                                     augmentation = True)
         
         self.val_dataset =  FlagSimpleDataset(device=self.device, 
-                                    path=os.path.join(self.data_dir, 'flag_simple_cache_20'), history = True , 
+                                    path=os.path.join(self.data_dir, 'flag_simple'), history = True , 
                                     split='valid', split_ratio = self.split_ratio, node_info=self.node_info, 
-                                    augmentation = False)
+                                    augmentation = True)
 
 
     def define_model(self):
@@ -80,32 +81,30 @@ class MGNDiffusion(BaseModule):
     def rollout(self):
         import trimesh
         
-        dump_path = './output/simple_test_run_diffusion_rollout/'
+        #dump_path = './output/simple_test_run_diffusion_rollout/'
+        #os.makedirs(dump_path, exist_ok = True)
+        #self.load_checkpoint('./weights/model_70.pt')
+        #self.model.to(torch.device("cuda:0"))
+        #self.model.eval()
+
+        dump_path = './output/diffusion_20/'
         os.makedirs(dump_path, exist_ok = True)
-        self.load_checkpoint('./weights/model_70.pt')
-        self.model.to(torch.device("cuda:0"))
+        self.load_checkpoint('./weights/diffusion_weights/model_28.pt')
+        self.model.to(torch.device("cuda:3"))
         self.model.eval()
-        
-        for idx, (data0, data1) in tqdm(enumerate(self.train_loader)):
-            for i in trange(len(data1)):
-                model_inputs = data0[i]
-                data = data1[i]
-                cells = data['cells']
-                model_inputs, data = self.send_to_cuda(model_inputs, data)
-                with torch.no_grad():
-                    predictions = self.model(model_inputs).detach().cpu()
-                faces = data['cells'].detach().cpu().numpy()
-                mesh = trimesh.Trimesh(predictions[0].numpy(), faces[0])
-                mesh.export(os.path.join(dump_path, f'{i}.ply'))
-                break
-            break
-        
-        for i in range(1, 150):
-            verts = deepcopy(predictions[0])
+       
+        data0, data1 = next(iter(self.val_loader))
+        for i in trange(300):
+            model_inputs = data0[i]
+            data = data1[i]
+            cells = data['cells']
+            faces = data['cells'].detach().cpu().numpy()
+            verts = data1[i]['world_pos'][0].detach().cpu()
             verts = diffusion_net.geometry.normalize_positions(verts)
             faces = torch.from_numpy(faces[0]).long()
             frames, mass, L, evals, evecs, gradX, gradY =  diffusion_net.geometry.get_operators(verts, faces)
-            model_inputs['world_pos'] = predictions
+            #model_inputs['world_pos'] = predictions
+            model_inputs['world_pos'] = data1[i]['world_pos']
             model_inputs['cells'] = faces.unsqueeze(0)
             model_inputs['frames'] = frames.unsqueeze(0)
             model_inputs['mass'] = mass.unsqueeze(0)
@@ -127,10 +126,10 @@ class MGNDiffusion(BaseModule):
         import matplotlib.pyplot as plt
         import trimesh
         
-        dump_path = './output/simple_test_run_diffusion/'
+        dump_path = './output/diffusion_20/'
         os.makedirs(dump_path, exist_ok = True)
-        self.load_checkpoint('./weights/model_70.pt')
-        self.model.to(torch.device("cuda:0"))
+        self.load_checkpoint('./weights/diffusion_weights/model_28.pt')
+        self.model.to(torch.device("cuda:3"))
         self.model.eval()
         
         for idx, (data0, data1) in tqdm(enumerate(self.val_loader)):

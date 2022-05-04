@@ -18,7 +18,13 @@ class DiffusionModel(nn.Module):
         self.core_model = encode_process_decode
         self.message_passing_steps = message_passing_steps
         self.message_passing_aggregator = message_passing_aggregator
-        self.learned_model = diffusion_net.layers.DiffusionNet( C_in=12, C_out=3, C_width=128, last_activation=None, outputs_at='vertices')
+        self.learned_model = diffusion_net.layers.DiffusionNet( C_in=12, C_out=12, C_width=128, last_activation=None, outputs_at='vertices')
+        self.learned_model2 = self.core_model.EncodeProcessDecode(
+            output_size=size,
+            latent_size=128,
+            num_layers=2,
+            message_passing_steps=self.message_passing_steps,
+            message_passing_aggregator=self.message_passing_aggregator, )
 
     def _build_graph(self, inputs):
         """Builds input graph."""
@@ -55,15 +61,17 @@ class DiffusionModel(nn.Module):
             senders=senders)
 
         # have to recheck normalizer batch issues
-        return (self.core_model.MultiGraph(node_features=self._node_normalizer(node_features), edge_sets=[mesh_edges]))
+        return self._node_normalizer(node_features), mesh_edges
+        #return (self.core_model.MultiGraph(node_features=self._node_normalizer(node_features), edge_sets=[mesh_edges]))
+
 
     def forward(self, inputs):
         is_training = self.training
-        graph = self._build_graph(inputs)
+        node_features, mesh_edges= self._build_graph(inputs)
 
         verts = inputs['world_pos']
         verts = diffusion_net.geometry.normalize_positions(verts)
-        features = graph.node_features
+        features = node_features
         mass = inputs['mass']
         L = inputs['L']
         evals = inputs['evals']
@@ -73,13 +81,21 @@ class DiffusionModel(nn.Module):
         faces = inputs['cells']
         if is_training:
             pred = self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
+            features = torch.cat([node_features, pred], dim = -1)
+            graph = self.core_model.MultiGraph(node_features = features, edge_sets=[mesh_edges])
+            pred = self.learned_model2(graph)
             return pred
         else:
-            return self._update(inputs, self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)) 
+            pred = self.learned_model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
+            features = torch.cat([node_features, pred], dim = -1)
+            graph = self.core_model.MultiGraph(node_features = features, edge_sets=[mesh_edges])
+            pred = self.learned_model2(graph)
+            return self._update(inputs,pred) 
 
     def _update(self, inputs, per_node_network_output):
         """Integrate model outputs."""
         
+        print(per_node_network_output.shape)
         acceleration = self._output_normalizer.inverse(per_node_network_output)
 
         # integrate forward

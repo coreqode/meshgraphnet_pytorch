@@ -13,7 +13,7 @@ from utils.common import unsorted_segment_operation
 EdgeSet = collections.namedtuple('EdgeSet', ['name', 'features', 'senders',
                                              'receivers'])
 MultiGraph = collections.namedtuple('Graph', ['node_features', 'edge_sets'])
-device = torch.device('cuda:0')
+device = torch.device('cuda:3')
 
 
 class LazyMLP(nn.Module):

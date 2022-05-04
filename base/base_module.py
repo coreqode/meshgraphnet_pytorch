@@ -42,7 +42,7 @@ class BaseModule:
             self.device = 'cpu'
             print('CUDA is not available.  Training on CPU ...')
         else:
-            self.device = 'cuda:0'
+            self.device = 'cuda:3'
             print('CUDA is available!  Training on GPU ...')
 
         self.define_dataset()
